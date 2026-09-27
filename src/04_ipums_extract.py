@@ -44,32 +44,49 @@ def month_samples(start: str, end: str) -> list[str]:
     return out
 
 
-def available_samples(client, collection: str = "cps", page_size: int = 500) -> set[str]:
-    """Every sample id IPUMS lists for `collection`, following all result pages.
+def available_samples(client, collection: str = "cps", page_size: int = 500) -> dict[str, str]:
+    """Every sample IPUMS lists for `collection` as {id: description}, all pages.
 
-    ipumspy's get_all_sample_info reads only the first page, which returns an
-    arbitrary subset of CPS samples; relying on it drops real months.
+    ipumspy's get_all_sample_info reads only the first page of results.
     """
-    names: set[str] = set()
+    info: dict[str, str] = {}
     page = 1
     while True:
         r = client.get(f"{client.base_url}/metadata/samples",
                        params={"collection": collection, "version": client.api_version,
                                "pageNumber": page, "pageSize": page_size}).json()
         data = r.get("data") or []
-        names.update(item["name"] for item in data)
+        info.update({item["name"]: item.get("description", "") for item in data})
         total = r.get("totalCount")
         # the server may cap pageSize, so prefer totalCount to decide when to stop
-        done = len(names) >= total if total is not None else len(data) < page_size
+        done = len(info) >= total if total is not None else len(data) < page_size
         if not data or done:
-            return names
+            return info
         page += 1
 
 
-def split_available(wanted: list[str], available) -> tuple[list[str], list[str]]:
-    """Split requested sample ids into those IPUMS offers and those it does not."""
-    have = set(available)
-    return [s for s in wanted if s in have], [s for s in wanted if s not in have]
+MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July",
+               "August", "September", "October", "November", "December"]
+
+
+def pick_monthly_samples(wanted: list[str], info: dict[str, str]) -> tuple[list[str], list[str]]:
+    """Map each requested month (cpsYYYY_MMb) to the sample IPUMS actually offers.
+
+    IPUMS names a monthly sample cpsYYYY_MMb, or cpsYYYY_MMs when that month also
+    carried a supplement; both hold the full basic monthly survey and are
+    described as "IPUMS-CPS, <Month> <Year>". The March ASEC ("IPUMS-CPS, ASEC
+    <Year>") is a different survey and is never picked. Returns (sample ids,
+    months with no monthly sample).
+    """
+    by_desc: dict[str, str] = {}
+    for name, desc in sorted(info.items(), key=lambda kv: not kv[0].endswith("b")):
+        by_desc.setdefault(desc.strip(), name)          # prefer the ...b sample
+    picked, missing = [], []
+    for s in wanted:
+        y, m = int(s[3:7]), int(s[8:10])
+        name = by_desc.get(f"IPUMS-CPS, {MONTH_NAMES[m - 1]} {y}")
+        (picked if name else missing).append(name or s)
+    return picked, missing
 
 
 def main() -> int:
@@ -108,9 +125,10 @@ def main() -> int:
 
     client = IpumsApiClient(key)
     wanted = month_samples(args.start, args.end)
-    samples, missing = split_available(wanted, available_samples(client))
+    samples, missing = pick_monthly_samples(wanted, available_samples(client))
     for s in missing:
-        print(f"[ipums] WARNING: IPUMS has no sample {s}; that month is not requested")
+        print(f"[ipums] WARNING: IPUMS has no monthly sample for {s[3:7]}-{s[8:10]}; "
+              "that month is not requested")
     if len(missing) > args.max_missing:
         print(f"[ipums] {len(missing)} of {len(wanted)} months are not listed by IPUMS "
               f"(limit {args.max_missing}); stopping so months are not dropped silently. "

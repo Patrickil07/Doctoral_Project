@@ -226,10 +226,16 @@ def test_month_samples():
     assert len(s) == 84 and s[0] == "cps2019_01b" and s[-1] == "cps2025_12b"
 
 
-def test_unavailable_samples_are_left_out():
-    wanted = ipums.month_samples("2025-09", "2025-11")
-    ok, missing = ipums.split_available(wanted, {"cps2025_09b": "", "cps2025_11b": ""})
-    assert ok == ["cps2025_09b", "cps2025_11b"] and missing == ["cps2025_10b"]
+def test_monthly_samples_picked_by_description():
+    info = {"cps2025_08s": "IPUMS-CPS, August 2025", "cps2025_03b": "IPUMS-CPS, March 2025",
+            "cps2025_03s": "IPUMS-CPS, ASEC 2025", "cps2025_11s": "IPUMS-CPS, November 2025",
+            "cps2025_07b": "IPUMS-CPS, July 2025"}
+    wanted = ipums.month_samples("2025-03", "2025-11")
+    picked, missing = ipums.pick_monthly_samples(wanted, info)
+    assert picked == ["cps2025_03b", "cps2025_07b", "cps2025_08s", "cps2025_11s"]
+    assert "cps2025_03s" not in picked                      # ASEC never picked
+    assert missing == ["cps2025_04b", "cps2025_05b", "cps2025_06b",
+                       "cps2025_09b", "cps2025_10b"]
 
 
 def test_available_samples_reads_every_page():
@@ -244,11 +250,12 @@ def test_available_samples_reads_every_page():
 
             class R:
                 def json(self_inner):
-                    return {"data": [{"name": x} for x in page], "totalCount": len(names)}
+                    return {"data": [{"name": x, "description": ""} for x in page],
+                            "totalCount": len(names)}
             return R()
 
     got = ipums.available_samples(FakeClient(), page_size=10)
-    assert got == set(names)
+    assert set(got) == set(names)
 
 
 # --- step 05 -------------------------------------------------------------------
