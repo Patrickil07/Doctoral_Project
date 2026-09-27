@@ -96,7 +96,7 @@ for name in ("IPUMS_API_KEY", "BLS_CONTACT_EMAIL"):
 
 # %%
 # 04  IPUMS CPS extract (skips if already downloaded; --force to re-request)
-# !python src/04_ipums_extract.py --start 2019-01 --end 2025-12
+# !python src/04_ipums_extract.py --start 2020-01 --end 2025-12
 
 # %%
 # 06  USAJOBS historic announcements (resumable; re-run after interruptions)

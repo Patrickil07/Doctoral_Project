@@ -13,7 +13,7 @@ until it is ready, then downloads the data and DDI codebook.
 
 Usage:
     export IPUMS_API_KEY=xxxxxxxx
-    python src/04_ipums_extract.py --start 2019-01 --end 2025-12
+    python src/04_ipums_extract.py --start 2020-01 --end 2025-12
     python src/04_ipums_extract.py --force        # re-request even if present
 """
 import argparse
@@ -50,10 +50,11 @@ def month_samples(start: str, end: str) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--start", default="2019-01")
+    ap.add_argument("--start", default="2020-01",
+                    help="2020-01 = first month on 2018 Census occupation codes")
     ap.add_argument("--end", default="2025-12")
     ap.add_argument("--outdir", default="data/raw/ipums")
-    ap.add_argument("--description", default="Pipeline Paradox CPS ORG 2019-2025")
+    ap.add_argument("--description", default="Pipeline Paradox CPS ORG 2020-2025")
     ap.add_argument("--force", action="store_true",
                     help="submit a new extract even if one is already downloaded")
     args = ap.parse_args()
