@@ -310,6 +310,12 @@ def test_knowledge_filter_uses_soc_major():
     assert sample.knowledge_occ_codes(occ) == {1021, 4700}
 
 
+def test_earnings_niu_codes_are_dropped():
+    s = pd.Series([0.0, 850.0, 2884.61, 9999.99, 999999.99])
+    assert sample.valid_earnings(s, "EARNWEEK2").tolist() == [False, True, True, True, False]
+    assert sample.valid_earnings(s, "EARNWEEK").tolist() == [False, True, True, False, False]
+
+
 # --- step 07 smoke test: the specifications estimate without error ----------
 @pytest.fixture(scope="module")
 def fake_sample() -> pd.DataFrame:

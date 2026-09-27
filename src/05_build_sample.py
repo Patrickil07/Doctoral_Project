@@ -32,6 +32,8 @@ import pandas as pd
 KNOWLEDGE_MAJOR = {"13", "15", "17", "19", "23", "27", "43"}
 # First CPS month coded with the 2018 Census occupation classification.
 SAMPLE_START = "2020-01"
+# "Not in universe" codes from the IPUMS CPS codebook (Version 13.0).
+EARNINGS_NIU = {"EARNWEEK": 9999.99, "EARNWEEK2": 999999.99}
 
 
 def restrict_period(df: pd.DataFrame, start: str = SAMPLE_START) -> pd.DataFrame:
@@ -45,6 +47,12 @@ def restrict_period(df: pd.DataFrame, start: str = SAMPLE_START) -> pd.DataFrame
                          "use 2010 Census occupation codes and cannot be merged")
     y, m = (int(x) for x in start.split("-"))
     return df[(df["YEAR"] > y) | ((df["YEAR"] == y) & (df["MONTH"] >= m))]
+
+
+def valid_earnings(earnweek: pd.Series, var: str) -> pd.Series:
+    """True for positive weekly earnings that are not the variable's NIU code."""
+    niu = EARNINGS_NIU[var]
+    return (earnweek > 0) & ~np.isclose(earnweek, niu) & (earnweek < niu)
 
 
 def knowledge_occ_codes(occ: pd.DataFrame) -> set:
@@ -118,7 +126,7 @@ def main() -> int:
         print("[sample] WARNING: EARNWEEK2 absent; pre/post-2023 earnings are NOT "
               "comparable without it (Census rounding introduced Apr 2023).")
     df["earnweek"] = pd.to_numeric(df[ew], errors="coerce")
-    df = df[(df["earnweek"] > 0) & (df["earnweek"] < 99999)]
+    df = df[valid_earnings(df["earnweek"], ew)]
     log.append(("valid weekly earnings", len(df)))
 
     if not args.keep_allocated:
