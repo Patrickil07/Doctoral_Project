@@ -21,7 +21,7 @@
 #
 # * **Code** comes from GitHub (this repo).
 # * **Data** stays on Google Drive and is linked into `data/`, so large
-#   downloads (IPUMS, USAJOBS) survive between Colab sessions and never enter git.
+#   downloads (IPUMS) survive between Colab sessions and never enter git.
 #
 # One-time setup in Colab's 🔑 **Secrets** panel (toggle *Notebook access* on):
 #
@@ -97,14 +97,6 @@ for name in ("IPUMS_API_KEY", "BLS_CONTACT_EMAIL"):
 # %%
 # 04  IPUMS CPS extract (skips if already downloaded; --force to re-request)
 # !python src/04_ipums_extract.py --start 2020-01 --end 2025-12
-
-# %%
-# 06  USAJOBS historic announcements (resumable; re-run after interruptions)
-# !python src/06_usajobs_historic.py --start 2019 --end 2025
-
-# %%
-# 06  completion report only
-# !python src/06_usajobs_historic.py --status
 
 # %% [markdown]
 # ## Measures, sample, estimation

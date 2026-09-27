@@ -33,7 +33,6 @@ conv = load("00b_convert_exposure")
 task = load("02_build_task_composition")
 xwalk = load("03_crosswalk")
 ipums = load("04_ipums_extract")
-usaj = load("06_usajobs_historic")
 sample = load("05_build_sample")
 est = load("07_estimate")
 
@@ -222,22 +221,6 @@ def test_sample_starts_january_2020():
     assert len(sample.restrict_period(d, "2020-06")) == 2
     with pytest.raises(ValueError):
         sample.restrict_period(d, "2019-01")
-
-
-# --- step 06 -------------------------------------------------------------------
-def test_grade_tier():
-    assert usaj.grade_tier({"minimumGrade": "07"}) == "entry"
-    assert usaj.grade_tier({"minimumGrade": "11"}) == "mid"
-    assert usaj.grade_tier({"minimumGrade": "13"}) == "senior"
-    assert usaj.grade_tier({"minimumGrade": None}) is None
-
-
-def test_next_url_never_double_encodes_token():
-    payload = {"paging": {"metadata": {"continuationToken": "abc%3D%3D"}}}
-    url = usaj.next_url(usaj.JOA, payload, {"PositionSeries": "2210"})
-    assert "%253D" not in url
-    q = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
-    assert q["continuationtoken"] == ["abc=="] and q["PositionSeries"] == ["2210"]
 
 
 # --- step 07 smoke test: the specifications estimate without error ----------

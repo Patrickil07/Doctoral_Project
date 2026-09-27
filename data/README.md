@@ -8,7 +8,7 @@ folder so large downloads persist between sessions.
 ```
 data/
 ├── raw/        downloaded inputs, never edited by hand
-├── interim/    derived occupation-level measures (steps 02, 03, 06 panel)
+├── interim/    derived occupation-level measures (steps 00b, 02, 03)
 └── out/        estimation sample and results (steps 05, 07)
 ```
 
@@ -26,7 +26,6 @@ data/
 | `interim/exposure_soc2018.csv` | primary measure: Eloundou **human-rated β** (E1 + 0.5·E2) on 6-digit SOC 2018 (O\*NET-SOC detail averaged) | `make exposure` / `src/00b_convert_exposure.py` | column used, aggregation rule |
 | `interim/exposure_{gpt4beta,lmaioe}_soc2018.csv` | robustness measures: Eloundou GPT-4-rated β; LM-AIOE mapped from SOC 2010 (split = copy, merge = mean) | `make robustness-exposure` | as above, plus the merged codes step 00b lists |
 | `raw/ipums/` | IPUMS CPS basic monthly samples 2020-01 to 2025-12 (`.xml` DDI + `.dat.gz`) | `make ipums` / `src/04_ipums_extract.py` (needs `IPUMS_API_KEY`, CPS registration) | extract number + IPUMS CPS version from the DDI |
-| `raw/usajobs/` | USAJOBS historic JOA API (public, no key) | `make usajobs` / `src/06_usajobs_historic.py` | series list, date range, retrieval dates |
 
 ### Coding pitfalls found in the inputs
 
@@ -64,7 +63,7 @@ downloads exactly as obtained, for provenance.
 ```bash
 export BLS_CONTACT_EMAIL=you@example.com
 export IPUMS_API_KEY=...            # never commit this
-make fetch onet ipums usajobs       # acquisition
+make fetch onet ipums               # acquisition
 # place data/raw/lm_aioe.xlsx (see table above)
 make exposure                       # step 00b (Eloundou human-rated beta)
 make estimate                       # steps 02 → 03 → 05 → 07

@@ -22,16 +22,12 @@ import pathlib
 import sys
 
 VARS = [
-    # identifiers / weights
-    "YEAR", "MONTH", "CPSID", "CPSIDP", "ASECFLAG", "MISH", "EARNWT", "WTFINL",
-    # geography & demographics
-    "STATEFIP", "METFIPS", "AGE", "SEX", "RACE", "HISPAN", "EDUC",
-    # employment
-    "EMPSTAT", "LABFORCE", "CLASSWKR", "IND", "OCC", "OCC2010", "OCCSOC",
-    "UHRSWORKORG", "PAIDHOUR", "UNION",
-    # earnings (ORG) + allocation flags for the Hirsch-Schumacher exclusion
-    "EARNWEEK", "EARNWEEK2", "HOURWAGE", "HOURWAGE2",
-    "QEARNWEEK", "QHOURWAGE", "OTPAY",
+    # Only variables that 05_build_sample.py or 07_estimate.py use. IPUMS adds
+    # its own preselected identifiers and weights (SERIAL, PERNUM, WTFINL, ...).
+    "YEAR", "MONTH", "EARNWT",                    # time; ORG earnings weight
+    "STATEFIP", "AGE", "SEX", "EDUC",             # controls, age bands, state FE
+    "EMPSTAT", "CLASSWKR", "IND", "OCC", "OCCSOC",  # sample rules, industry FE, merge key
+    "EARNWEEK", "EARNWEEK2", "QEARNWEEK",         # earnings; allocation flag
 ]
 
 
