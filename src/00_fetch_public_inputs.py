@@ -8,10 +8,13 @@
     data/raw/soc_2010_to_2018_crosswalk.xlsx
                                          BLS SOC 2010 -> 2018 crosswalk (used by step
                                          00b for exposure measures coded on SOC 2010)
+    data/raw/eloundou_occ_level.csv      Eloundou et al. (2024) occupation-level GPT
+                                         exposure (primary measure), from the authors'
+                                         repository at a pinned commit; the SHA-256 is
+                                         checked so the input cannot change silently
 
-NOT fetched here: the GenAI exposure measure (data/raw/lm_aioe.xlsx or a SOC
-2018 file). It is a methodological choice; place it by hand, record the
-source in data/README.md, and convert it with step 00b.
+NOT fetched here: the LM-AIOE robustness measure (data/raw/lm_aioe.xlsx),
+which is placed by hand; see data/README.md.
 
 OEWS year: the default is 2021, the first May estimates published entirely on
 SOC 2018. May 2019 and 2020 use hybrid codes (e.g. 15-1256 in place of 15-1252
@@ -46,6 +49,10 @@ XWALK_URL = ("https://www2.census.gov/programs-surveys/demo/guidance/industry-oc
 CPI_URL = "https://download.bls.gov/pub/time.series/cu/cu.data.1.AllItems"
 CPI_SERIES = "CUUR0000SA0"
 SOC_XWALK_URL = "https://www.bls.gov/soc/2018/soc_2010_to_2018_crosswalk.xlsx"
+ELOUNDOU_COMMIT = "0471612fef3cc22b74fb884d27bff9dbd3770582"
+ELOUNDOU_URL = ("https://raw.githubusercontent.com/openai/GPTs-are-GPTs/"
+                f"{ELOUNDOU_COMMIT}/data/occ_level.csv")
+ELOUNDOU_SHA256 = "40c74f53de40aec91c0017d80690cbba915f83a8bb414bcf2f884692f1749acb"
 
 
 def get(url: str, email: str) -> bytes:
@@ -90,6 +97,18 @@ def fetch_soc_crosswalk(raw: pathlib.Path, email: str, url: str | None, manifest
     print("[fetch] BLS SOC 2010->2018 crosswalk -> data/raw/soc_2010_to_2018_crosswalk.xlsx")
 
 
+def fetch_eloundou(raw: pathlib.Path, email: str, url: str | None, manifest: dict):
+    url = url or ELOUNDOU_URL
+    blob = get(url, email)
+    sha = hashlib.sha256(blob).hexdigest()
+    if url == ELOUNDOU_URL and sha != ELOUNDOU_SHA256:
+        raise ValueError(f"checksum mismatch for the pinned Eloundou file: {sha}")
+    record(manifest, "eloundou_occ_level", url, blob)
+    (raw / "eloundou_occ_level.csv").write_bytes(blob)
+    print(f"[fetch] Eloundou et al. occ_level.csv @ {ELOUNDOU_COMMIT[:7]} "
+          "-> data/raw/eloundou_occ_level.csv (checksum verified)")
+
+
 def fetch_cpi(raw: pathlib.Path, email: str, url: str | None, manifest: dict):
     import pandas as pd
     url = url or CPI_URL
@@ -115,11 +134,14 @@ def main() -> int:
                     help="pre-period OEWS year used for employment weights "
                          "(2021 = first year fully on SOC 2018)")
     ap.add_argument("--email", default=os.environ.get("BLS_CONTACT_EMAIL"))
-    ap.add_argument("--only", choices=["oews", "crosswalk", "cpi", "soc"], nargs="+")
+    ap.add_argument("--only", choices=["oews", "crosswalk", "cpi", "soc", "eloundou"],
+                    nargs="+")
     ap.add_argument("--oews-url", help="override if BLS moves the file")
     ap.add_argument("--crosswalk-url", help="override if Census moves the file")
     ap.add_argument("--cpi-url", help="override if BLS moves the file")
     ap.add_argument("--soc-url", help="override if BLS moves the SOC crosswalk")
+    ap.add_argument("--eloundou-url", help="override the pinned Eloundou file (no "
+                    "checksum check)")
     args = ap.parse_args()
 
     if not args.email:
@@ -135,7 +157,9 @@ def main() -> int:
     jobs = {"oews": lambda: fetch_oews(raw, args.oews_year, args.email, args.oews_url, manifest),
             "crosswalk": lambda: fetch_crosswalk(raw, args.email, args.crosswalk_url, manifest),
             "cpi": lambda: fetch_cpi(raw, args.email, args.cpi_url, manifest),
-            "soc": lambda: fetch_soc_crosswalk(raw, args.email, args.soc_url, manifest)}
+            "soc": lambda: fetch_soc_crosswalk(raw, args.email, args.soc_url, manifest),
+            "eloundou": lambda: fetch_eloundou(raw, args.email, args.eloundou_url,
+                                               manifest)}
     failed = []
     for name in args.only or jobs:
         try:
@@ -147,9 +171,9 @@ def main() -> int:
                   f"--{name}-url <link>", file=sys.stderr)
 
     mpath.write_text(json.dumps(manifest, indent=2))
-    if not (raw / "lm_aioe.xlsx").exists() and not any(raw.glob("exposure_*")):
-        print("[fetch] reminder: the exposure measure must be placed by hand "
-              "(see data/README.md), then converted with step 00b")
+    if not (raw / "lm_aioe.xlsx").exists():
+        print("[fetch] note: data/raw/lm_aioe.xlsx (LM-AIOE robustness measure) is "
+              "placed by hand; see data/README.md")
     return 1 if failed else 0
 
 
