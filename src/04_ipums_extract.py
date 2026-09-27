@@ -109,7 +109,8 @@ def submit_dropping_optional(client, make, required: list[str], optional: list[s
             client.submit_extract(extract)
             return extract, variables
         except BadIpumsApiRequest as exc:
-            bad = re.findall(r"Invalid variable name: (\w+)", str(exc))
+            # IPUMS words this "Invalid variable name: X" or "Invalid mnemonic: X"
+            bad = re.findall(r"Invalid (?:variable name|mnemonic): (\w+)", str(exc))
             if not bad or any(v not in optional for v in bad):
                 raise
             for v in bad:

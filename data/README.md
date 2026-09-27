@@ -61,10 +61,12 @@ data/
   variable; step 03 assigns each CPS occupation code its SOC 2018 major group
   (largest-employment group where a code spans several) and step 05 selects
   the knowledge-intensive groups with it.
-- **Imputed earnings: open.** The extract has no EARNWEEK allocation flag
-  (`QEARNWEEK` and `QEARNWEE` are not IPUMS CPS names). Until the correct flag
-  is added, step 05 keeps imputed earnings and prints a warning; the planned
-  Hirsch-Schumacher exclusion is not applied.
+- **Imputed earnings: no flag available.** IPUMS CPS accepts no EARNWEEK
+  allocation flag for the monthly samples: a probe of 30 candidate names on 27
+  September 2026 (including `QEARNWEE`, `QEARNWEEK`, `QHOURWAG`, `PRWERNAL` and
+  `UH_…` variants) was rejected for every name. Imputed earnings therefore stay
+  in the sample; step 05 prints a warning. Whether to treat this as a stated
+  limitation is a decision for the author and supervisor (brief, item 9).
 
 ## Where the data lives
 

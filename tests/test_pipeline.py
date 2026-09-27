@@ -276,6 +276,18 @@ def test_rejected_optional_variable_is_dropped_and_resubmitted():
     assert used == ["YEAR", "OCC"] and len(c.calls) == 2
 
 
+def test_invalid_mnemonic_wording_is_also_dropped():
+    from ipumspy.api.exceptions import BadIpumsApiRequest
+
+    class FakeClient:
+        def submit_extract(self, extract):
+            if "QEARNWEE" in extract:
+                raise BadIpumsApiRequest("Invalid mnemonic: QEARNWEE")
+
+    _, used = ipums.submit_dropping_optional(FakeClient(), list, ["YEAR"], ["QEARNWEE"])
+    assert used == ["YEAR"]
+
+
 def test_rejected_required_variable_still_fails():
     from ipumspy.api.exceptions import BadIpumsApiRequest
 
