@@ -109,22 +109,35 @@ def fetch_eloundou(raw: pathlib.Path, email: str, url: str | None, manifest: dic
           "-> data/raw/eloundou_occ_level.csv (checksum verified)")
 
 
-def fetch_cpi(raw: pathlib.Path, email: str, url: str | None, manifest: dict):
+def parse_cpi(blob: bytes):
+    """BLS cu.data.1.AllItems -> monthly CPI-U (year, month, cpi) from 2015.
+
+    Months BLS did not publish appear as "-" in the file. They are kept with a
+    missing cpi rather than filled in: how to treat them is an analysis
+    decision.
+    """
     import pandas as pd
-    url = url or CPI_URL
-    blob = get(url, email)
-    record(manifest, "cpi_u", url, blob)
     df = pd.read_csv(io.BytesIO(blob), sep="\t", dtype=str)
     df.columns = [c.strip() for c in df.columns]
     df = df[df["series_id"].str.strip() == CPI_SERIES]
     df = df[df["period"].str.match(r"^M(0[1-9]|1[0-2])$")]          # drop M13 annual avg
     out = pd.DataFrame({"year": df["year"].astype(int),
                         "month": df["period"].str[1:].astype(int),
-                        "cpi": pd.to_numeric(df["value"].str.strip())})
-    out = out[out["year"] >= 2015].sort_values(["year", "month"])
+                        "cpi": pd.to_numeric(df["value"].str.strip(), errors="coerce")})
+    return out[out["year"] >= 2015].sort_values(["year", "month"])
+
+
+def fetch_cpi(raw: pathlib.Path, email: str, url: str | None, manifest: dict):
+    url = url or CPI_URL
+    blob = get(url, email)
+    record(manifest, "cpi_u", url, blob)
+    out = parse_cpi(blob)
     out.to_csv(raw / "cpi_u.csv", index=False)
     print(f"[fetch] CPI-U {CPI_SERIES} {out['year'].min()}-{out['year'].max()} "
           f"-> data/raw/cpi_u.csv ({len(out)} months)")
+    missing = out[out["cpi"].isna()]
+    for y, m in zip(missing["year"], missing["month"]):
+        print(f"[fetch] WARNING: CPI-U not published for {y}-{m:02d}; left blank in cpi_u.csv")
 
 
 def main() -> int:
@@ -144,7 +157,9 @@ def main() -> int:
                     "checksum check)")
     args = ap.parse_args()
 
-    if not args.email:
+    # Only the BLS and Census downloads need a contact address; the Eloundou
+    # file comes from GitHub and can be fetched without one.
+    if not args.email and set(args.only or ["oews"]) - {"eloundou"}:
         print("[fetch] pass --email or set BLS_CONTACT_EMAIL (BLS requires a contact "
               "address in the User-Agent)", file=sys.stderr)
         return 1

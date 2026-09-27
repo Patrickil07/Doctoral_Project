@@ -25,6 +25,10 @@ from datetime import datetime, timezone
 
 BASE = "https://www.onetcenter.org/dl_files/database"
 UA = "PipelineParadox-DBA-research/1.0 (academic use)"
+# SHA-256 of each release archive as first downloaded (GitHub run, 27 Sep 2026).
+KNOWN_SHA256 = {
+    "30.3": "7758ec966fd91895b3d290b83c9f1f1d46730d37fdda4faac67104d1c0d2a780",
+}
 
 
 def build_url(release: str) -> str:
@@ -60,6 +64,11 @@ def main() -> int:
         return 1
 
     sha = hashlib.sha256(blob).hexdigest()
+    expected = KNOWN_SHA256.get(args.release)
+    if expected and not args.url and sha != expected:
+        print(f"[onet] FAILED: checksum {sha} does not match the pinned {expected} for "
+              f"release {args.release}; nothing extracted", file=sys.stderr)
+        return 1
     with zipfile.ZipFile(io.BytesIO(blob)) as zf:
         members = zf.namelist()
         zf.extractall(outdir)

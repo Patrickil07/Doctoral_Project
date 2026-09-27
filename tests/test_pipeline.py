@@ -33,7 +33,6 @@ conv = load("00b_convert_exposure")
 task = load("02_build_task_composition")
 xwalk = load("03_crosswalk")
 ipums = load("04_ipums_extract")
-usaj = load("06_usajobs_historic")
 sample = load("05_build_sample")
 est = load("07_estimate")
 
@@ -207,10 +206,92 @@ def test_step00b_default_run_writes_soc2018_file(tmp_path):
     assert set(df["soc2018"]) == {"15-1252", "15-1253"}
 
 
+def test_cpi_parse_keeps_unpublished_month_blank():
+    fetch = load("00_fetch_public_inputs")
+    rows = ["series_id        \tyear\tperiod\tvalue\tfootnote_codes",
+            "CUUR0000SA0      \t2025\tM09\t 324.800\t",
+            "CUUR0000SA0      \t2025\tM10\t -\t",
+            "CUUR0000SA0      \t2025\tM11\t 325.000\t",
+            "CUUR0000SA0      \t2025\tM13\t 323.000\t",
+            "CUUR0000AA0      \t2025\tM09\t 999.000\t"]
+    out = fetch.parse_cpi("\n".join(rows).encode())
+    assert list(out["month"]) == [9, 10, 11]
+    assert out["cpi"].isna().tolist() == [False, True, False]
+    assert out["cpi"].iloc[0] == pytest.approx(324.8)
+
+
 # --- step 04 -------------------------------------------------------------------
 def test_month_samples():
     s = ipums.month_samples("2019-01", "2025-12")
     assert len(s) == 84 and s[0] == "cps2019_01b" and s[-1] == "cps2025_12b"
+
+
+def test_monthly_samples_picked_by_description():
+    info = {"cps2025_08s": "IPUMS-CPS, August 2025", "cps2025_03b": "IPUMS-CPS, March 2025",
+            "cps2025_03s": "IPUMS-CPS, ASEC 2025", "cps2025_11s": "IPUMS-CPS, November 2025",
+            "cps2025_07b": "IPUMS-CPS, July 2025"}
+    wanted = ipums.month_samples("2025-03", "2025-11")
+    picked, missing = ipums.pick_monthly_samples(wanted, info)
+    assert picked == ["cps2025_03b", "cps2025_07b", "cps2025_08s", "cps2025_11s"]
+    assert "cps2025_03s" not in picked                      # ASEC never picked
+    assert missing == ["cps2025_04b", "cps2025_05b", "cps2025_06b",
+                       "cps2025_09b", "cps2025_10b"]
+
+
+def test_available_samples_reads_every_page():
+    names = [f"cps{y}_{m:02d}b" for y in range(2020, 2026) for m in range(1, 13)]
+
+    class FakeClient:
+        base_url, api_version = "https://api.ipums.org", 2
+
+        def get(self, url, params):
+            n, size = params["pageNumber"], params["pageSize"]
+            page = names[(n - 1) * size:n * size]
+
+            class R:
+                def json(self_inner):
+                    return {"data": [{"name": x, "description": ""} for x in page],
+                            "totalCount": len(names)}
+            return R()
+
+    got = ipums.available_samples(FakeClient(), page_size=10)
+    assert set(got) == set(names)
+
+
+def test_rejected_optional_variable_is_dropped_and_resubmitted():
+    from ipumspy.api.exceptions import BadIpumsApiRequest
+
+    class FakeClient:
+        def __init__(self):
+            self.calls = []
+
+        def submit_extract(self, extract):
+            self.calls.append(list(extract))
+            if "QEARNWEE" in extract:
+                raise BadIpumsApiRequest("Invalid variable name: QEARNWEE")
+
+    c = FakeClient()
+    _, used = ipums.submit_dropping_optional(c, list, ["YEAR", "OCC"], ["QEARNWEE"])
+    assert used == ["YEAR", "OCC"] and len(c.calls) == 2
+
+
+def test_rejected_required_variable_still_fails():
+    from ipumspy.api.exceptions import BadIpumsApiRequest
+
+    class FakeClient:
+        def submit_extract(self, extract):
+            raise BadIpumsApiRequest("Invalid variable name: OCC")
+
+    with pytest.raises(BadIpumsApiRequest):
+        ipums.submit_dropping_optional(FakeClient(), list, ["YEAR", "OCC"], ["QEARNWEE"])
+
+
+def test_soc_major_from_crosswalk_uses_largest_employment_group():
+    df = pd.DataFrame({"cps_occ": [1021, 1021, 4700, 4700],
+                       "soc2018": ["15-1252", "15-1253", "41-2031", "43-4051"],
+                       "emp": [100.0, 50.0, 10.0, 90.0]})
+    got = xwalk.soc_major_by_occ(df).set_index("cps_occ")["soc_major"].to_dict()
+    assert got == {1021: "15", 4700: "43"}
 
 
 # --- step 05 -------------------------------------------------------------------
@@ -224,20 +305,9 @@ def test_sample_starts_january_2020():
         sample.restrict_period(d, "2019-01")
 
 
-# --- step 06 -------------------------------------------------------------------
-def test_grade_tier():
-    assert usaj.grade_tier({"minimumGrade": "07"}) == "entry"
-    assert usaj.grade_tier({"minimumGrade": "11"}) == "mid"
-    assert usaj.grade_tier({"minimumGrade": "13"}) == "senior"
-    assert usaj.grade_tier({"minimumGrade": None}) is None
-
-
-def test_next_url_never_double_encodes_token():
-    payload = {"paging": {"metadata": {"continuationToken": "abc%3D%3D"}}}
-    url = usaj.next_url(usaj.JOA, payload, {"PositionSeries": "2210"})
-    assert "%253D" not in url
-    q = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
-    assert q["continuationtoken"] == ["abc=="] and q["PositionSeries"] == ["2210"]
+def test_knowledge_filter_uses_soc_major():
+    occ = pd.DataFrame({"cps_occ": [1021, 4700, 9130], "soc_major": ["15", "43", "53"]})
+    assert sample.knowledge_occ_codes(occ) == {1021, 4700}
 
 
 # --- step 07 smoke test: the specifications estimate without error ----------

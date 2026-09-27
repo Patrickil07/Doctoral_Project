@@ -11,7 +11,7 @@ Every number in Chapters 4–5 should be traceable to one commit. The routine:
 4. **Tag the commit** that produced them:
 
    ```bash
-   git tag -a ch4-v1 -m "Chapter 4 tables: O*NET 30.3, OEWS 2019, IPUMS extract #NNN"
+   git tag -a ch4-v1 -m "Chapter 4 tables: O*NET 30.3, OEWS 2021, IPUMS extract #NNN"
    git push origin ch4-v1
    ```
 

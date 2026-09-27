@@ -19,19 +19,22 @@ Usage:
 import argparse
 import os
 import pathlib
+import re
 import sys
 
 VARS = [
-    # identifiers / weights
-    "YEAR", "MONTH", "CPSID", "CPSIDP", "ASECFLAG", "MISH", "EARNWT", "WTFINL",
-    # geography & demographics
-    "STATEFIP", "METFIPS", "AGE", "SEX", "RACE", "HISPAN", "EDUC",
-    # employment
-    "EMPSTAT", "LABFORCE", "CLASSWKR", "IND", "OCC", "OCC2010", "OCCSOC",
-    "UHRSWORKORG", "PAIDHOUR", "UNION",
-    # earnings (ORG) + allocation flags for the Hirsch-Schumacher exclusion
-    "EARNWEEK", "EARNWEEK2", "HOURWAGE", "HOURWAGE2",
-    "QEARNWEEK", "QHOURWAGE", "OTPAY",
+    # Only variables that 05_build_sample.py or 07_estimate.py use. IPUMS adds
+    # its own preselected identifiers and weights (SERIAL, PERNUM, WTFINL, ...).
+    # The SOC major group comes from the Census crosswalk (step 03): IPUMS CPS
+    # has no OCCSOC variable.
+    "YEAR", "MONTH", "EARNWT",                    # time; ORG earnings weight
+    "STATEFIP", "AGE", "SEX", "EDUC",             # controls, age bands, state FE
+    "EMPSTAT", "CLASSWKR", "IND", "OCC",          # sample rules, industry FE, merge key
+    "EARNWEEK", "EARNWEEK2",                      # weekly earnings
+]
+# Requested if IPUMS accepts the name; dropped with a warning if it does not.
+OPTIONAL_VARS = [
+    "QEARNWEE",                                   # EARNWEEK allocation (imputation) flag
 ]
 
 
@@ -48,6 +51,72 @@ def month_samples(start: str, end: str) -> list[str]:
     return out
 
 
+def available_samples(client, collection: str = "cps", page_size: int = 500) -> dict[str, str]:
+    """Every sample IPUMS lists for `collection` as {id: description}, all pages.
+
+    ipumspy's get_all_sample_info reads only the first page of results.
+    """
+    info: dict[str, str] = {}
+    page = 1
+    while True:
+        r = client.get(f"{client.base_url}/metadata/samples",
+                       params={"collection": collection, "version": client.api_version,
+                               "pageNumber": page, "pageSize": page_size}).json()
+        data = r.get("data") or []
+        info.update({item["name"]: item.get("description", "") for item in data})
+        total = r.get("totalCount")
+        # the server may cap pageSize, so prefer totalCount to decide when to stop
+        done = len(info) >= total if total is not None else len(data) < page_size
+        if not data or done:
+            return info
+        page += 1
+
+
+MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July",
+               "August", "September", "October", "November", "December"]
+
+
+def pick_monthly_samples(wanted: list[str], info: dict[str, str]) -> tuple[list[str], list[str]]:
+    """Map each requested month (cpsYYYY_MMb) to the sample IPUMS actually offers.
+
+    IPUMS names a monthly sample cpsYYYY_MMb, or cpsYYYY_MMs when that month also
+    carried a supplement; both hold the full basic monthly survey and are
+    described as "IPUMS-CPS, <Month> <Year>". The March ASEC ("IPUMS-CPS, ASEC
+    <Year>") is a different survey and is never picked. Returns (sample ids,
+    months with no monthly sample).
+    """
+    by_desc: dict[str, str] = {}
+    for name, desc in sorted(info.items(), key=lambda kv: not kv[0].endswith("b")):
+        by_desc.setdefault(desc.strip(), name)          # prefer the ...b sample
+    picked, missing = [], []
+    for s in wanted:
+        y, m = int(s[3:7]), int(s[8:10])
+        name = by_desc.get(f"IPUMS-CPS, {MONTH_NAMES[m - 1]} {y}")
+        (picked if name else missing).append(name or s)
+    return picked, missing
+
+
+def submit_dropping_optional(client, make, required: list[str], optional: list[str]):
+    """Submit an extract; if IPUMS rejects only optional variable names, drop them and retry.
+
+    A rejected request creates no extract. Any rejected required variable is an error.
+    """
+    from ipumspy.api.exceptions import BadIpumsApiRequest
+    variables = list(required) + list(optional)
+    while True:
+        extract = make(variables)
+        try:
+            client.submit_extract(extract)
+            return extract, variables
+        except BadIpumsApiRequest as exc:
+            bad = re.findall(r"Invalid variable name: (\w+)", str(exc))
+            if not bad or any(v not in optional for v in bad):
+                raise
+            for v in bad:
+                print(f"[ipums] WARNING: IPUMS does not recognise {v}; requesting without it")
+            variables = [v for v in variables if v not in bad]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", default="2020-01",
@@ -55,6 +124,8 @@ def main() -> int:
     ap.add_argument("--end", default="2025-12")
     ap.add_argument("--outdir", default="data/raw/ipums")
     ap.add_argument("--description", default="Pipeline Paradox CPS ORG 2020-2025")
+    ap.add_argument("--max-missing", type=int, default=2,
+                    help="stop if more requested months than this are unavailable")
     ap.add_argument("--force", action="store_true",
                     help="submit a new extract even if one is already downloaded")
     args = ap.parse_args()
@@ -80,21 +151,27 @@ def main() -> int:
     outdir = pathlib.Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    samples = month_samples(args.start, args.end)
-    print(f"[ipums] requesting {len(samples)} monthly samples, {len(VARS)} variables")
-    print("[ipums] NOTE: October 2025 was not collected (federal shutdown) and will "
-          "be absent; this is expected — see proposal Section 6.6.")
-
     client = IpumsApiClient(key)
-    extract = MicrodataExtract(
-        collection="cps",
-        description=args.description,
-        samples=samples,
-        variables=VARS,
-    )
+    wanted = month_samples(args.start, args.end)
+    samples, missing = pick_monthly_samples(wanted, available_samples(client))
+    for s in missing:
+        print(f"[ipums] WARNING: IPUMS has no monthly sample for {s[3:7]}-{s[8:10]}; "
+              "that month is not requested")
+    if len(missing) > args.max_missing:
+        print(f"[ipums] {len(missing)} of {len(wanted)} months are not listed by IPUMS "
+              f"(limit {args.max_missing}); stopping so months are not dropped silently. "
+              "Check the list above against the IPUMS CPS sample page, or raise "
+              "--max-missing if the gaps are real.", file=sys.stderr)
+        return 1
+    print(f"[ipums] requesting {len(samples)} monthly samples "
+          f"({samples[0]} to {samples[-1]}), {len(VARS)} variables")
 
-    client.submit_extract(extract)
-    print(f"[ipums] submitted extract #{extract.extract_id}; waiting…")
+    def make(variables):
+        return MicrodataExtract(collection="cps", description=args.description,
+                                samples=samples, variables=variables)
+
+    extract, used = submit_dropping_optional(client, make, VARS, OPTIONAL_VARS)
+    print(f"[ipums] submitted extract #{extract.extract_id} with variables {used}; waiting…")
     client.wait_for_extract(extract)
     client.download_extract(extract, download_dir=outdir)
 

@@ -4,5 +4,4 @@ numpy>=1.26,<3          # tested 2.4.6
 statsmodels>=0.14       # tested 0.15.0
 pyarrow>=15             # tested 23.0.1
 openpyxl>=3.1           # tested 3.1.5
-matplotlib>=3.8         # tested 3.11.2
 ipumspy>=0.5            # tested 0.8.2

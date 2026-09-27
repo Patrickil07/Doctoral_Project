@@ -13,14 +13,13 @@ RESULTS = data/out/results/rq1_task_composition.csv
 PUBLIC  = data/raw/oews_national.xlsx data/raw/census_soc_crosswalk.xlsx data/raw/cpi_u.csv
 EXPOSURE = data/interim/exposure_soc2018.csv
 
-.PHONY: help all fetch exposure robustness-exposure onet ipums usajobs usajobs-status estimate robustness test clean-interim
+.PHONY: help all fetch exposure robustness-exposure onet ipums estimate robustness test clean-interim
 
 help:
 	@echo "make fetch          00  OEWS, Census + SOC crosswalks, CPI-U (needs BLS_CONTACT_EMAIL)"
 	@echo "make exposure       00b Eloundou et al. human-rated beta -> SOC 2018 (primary)"
 	@echo "make onet           01  O*NET $(ONET_RELEASE)"
 	@echo "make ipums          04  IPUMS CPS extract (needs IPUMS_API_KEY)"
-	@echo "make usajobs        06  USAJOBS historic announcements + panel"
 	@echo "make estimate       02, 03, 05, 07 as needed"
 	@echo "make robustness     07  with the pandemic window dropped"
 	@echo "make robustness-exposure  03-07 with GPT-4-rated beta and with LM-AIOE"
@@ -37,12 +36,6 @@ $(ONET_DIR)/_manifest.json:
 
 ipums:
 	$(PY) src/04_ipums_extract.py
-
-usajobs:
-	$(PY) src/06_usajobs_historic.py
-
-usajobs-status:
-	$(PY) src/06_usajobs_historic.py --status
 
 exposure: $(EXPOSURE)
 $(EXPOSURE): src/00b_convert_exposure.py data/raw/eloundou_occ_level.csv

@@ -1,0 +1,46 @@
+# Downloads public inputs with src/00_fetch_public_inputs.py and publishes them
+# as a run artifact (kept 30 days) for copying to Drive 07_Data/raw/. Nothing
+# is committed to the repository. The Eloundou file is always re-fetched so the
+# artifact's _public_inputs_manifest.json covers every file it contains.
+name: fetch-public-inputs
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "inputs to fetch (space-separated: oews crosswalk cpi soc)"
+        default: "cpi soc"
+  push:
+    branches: [claude/research-pipeline-github-c2r7vh]
+    paths: [.github/workflows/fetch-public-inputs.yml, src/00_fetch_public_inputs.py]
+
+permissions:
+  contents: read
+
+env:
+  # BLS rejects requests without a contact address in the User-Agent.
+  BLS_CONTACT_EMAIL: godeleinpatrick@gmail.com
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -q -r requirements.txt
+      - run: python src/00_fetch_public_inputs.py --only eloundou ${{ inputs.only || 'cpi soc' }}
+      - run: |
+          cd data/raw
+          sha256sum -- *.csv *.xlsx
+          cat _public_inputs_manifest.json
+          [ -f cpi_u.csv ] && { head -3 cpi_u.csv; tail -14 cpi_u.csv; wc -l cpi_u.csv; } || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public_inputs
+          path: |
+            data/raw/*.csv
+            data/raw/*.xlsx
+            data/raw/_public_inputs_manifest.json
+          retention-days: 30
