@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------------------
+# Data: never committed. IPUMS terms forbid redistributing extracts, and
+# everything here can be rebuilt from src/ (see data/README.md).
+# ---------------------------------------------------------------------------
+data/*
+!data/README.md
+!data/*/
+data/*/*
+!data/*/.gitkeep
+models/
+*.parquet
+*.dat
+*.dat.gz
+*.jsonl
+*.ldjson
+*.pkl
+
+# Credentials
+.env
+*.key
+*_api_key*
+
+# Private material: keep in Google Drive, not here
+notes/
+supervision/
+drafts/
+*.docx
+
+# Python / Jupyter
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/
+venv/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
