@@ -5,10 +5,18 @@
     data/raw/census_soc_crosswalk.xlsx   Census 2018 occupation code list with SOC crosswalk
     data/raw/cpi_u.csv                   CPI-U all items, NSA (BLS series CUUR0000SA0),
                                          reshaped to columns year,month,cpi
+    data/raw/soc_2010_to_2018_crosswalk.xlsx
+                                         BLS SOC 2010 -> 2018 crosswalk (used by step
+                                         00b for exposure measures coded on SOC 2010)
 
-NOT fetched here: data/raw/exposure_soc.csv (columns soc2018,exposure). The GenAI
-exposure measure is a methodological choice; build it from your chosen source
-and record that source in data/README.md.
+NOT fetched here: the GenAI exposure measure (data/raw/exposure_soc2010.csv or
+a SOC 2018 file). It is a methodological choice; place it by hand, record the
+source in data/README.md, and convert it with step 00b.
+
+OEWS year: the default is 2021, the first May estimates published entirely on
+SOC 2018. May 2019 and 2020 use hybrid codes (e.g. 15-1256 in place of 15-1252
+Software Developers and 15-1253 QA Testers), which leaves those detailed
+occupations without employment weights in step 03.
 
 BLS rejects requests without a descriptive User-Agent that includes a contact
 address, so pass --email (or set BLS_CONTACT_EMAIL).
@@ -18,7 +26,7 @@ data/raw/_public_inputs_manifest.json for the methodology appendix.
 
 Usage:
     python src/00_fetch_public_inputs.py --email you@example.com
-    python src/00_fetch_public_inputs.py --oews-year 2021 --email you@example.com
+    python src/00_fetch_public_inputs.py --oews-year 2019 --email you@example.com
     python src/00_fetch_public_inputs.py --only cpi --email you@example.com
 """
 import argparse
@@ -37,6 +45,7 @@ XWALK_URL = ("https://www2.census.gov/programs-surveys/demo/guidance/industry-oc
              "2018-occupation-code-list-and-crosswalk.xlsx")
 CPI_URL = "https://download.bls.gov/pub/time.series/cu/cu.data.1.AllItems"
 CPI_SERIES = "CUUR0000SA0"
+SOC_XWALK_URL = "https://www.bls.gov/soc/2018/soc_2010_to_2018_crosswalk.xlsx"
 
 
 def get(url: str, email: str) -> bytes:
@@ -73,6 +82,14 @@ def fetch_crosswalk(raw: pathlib.Path, email: str, url: str | None, manifest: di
     print("[fetch] Census 2018 crosswalk -> data/raw/census_soc_crosswalk.xlsx")
 
 
+def fetch_soc_crosswalk(raw: pathlib.Path, email: str, url: str | None, manifest: dict):
+    url = url or SOC_XWALK_URL
+    blob = get(url, email)
+    record(manifest, "soc_2010_to_2018_crosswalk", url, blob)
+    (raw / "soc_2010_to_2018_crosswalk.xlsx").write_bytes(blob)
+    print("[fetch] BLS SOC 2010->2018 crosswalk -> data/raw/soc_2010_to_2018_crosswalk.xlsx")
+
+
 def fetch_cpi(raw: pathlib.Path, email: str, url: str | None, manifest: dict):
     import pandas as pd
     url = url or CPI_URL
@@ -94,13 +111,15 @@ def fetch_cpi(raw: pathlib.Path, email: str, url: str | None, manifest: dict):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw", default="data/raw")
-    ap.add_argument("--oews-year", type=int, default=2019,
-                    help="pre-period OEWS year used for employment weights")
+    ap.add_argument("--oews-year", type=int, default=2021,
+                    help="pre-period OEWS year used for employment weights "
+                         "(2021 = first year fully on SOC 2018)")
     ap.add_argument("--email", default=os.environ.get("BLS_CONTACT_EMAIL"))
-    ap.add_argument("--only", choices=["oews", "crosswalk", "cpi"], nargs="+")
+    ap.add_argument("--only", choices=["oews", "crosswalk", "cpi", "soc"], nargs="+")
     ap.add_argument("--oews-url", help="override if BLS moves the file")
     ap.add_argument("--crosswalk-url", help="override if Census moves the file")
     ap.add_argument("--cpi-url", help="override if BLS moves the file")
+    ap.add_argument("--soc-url", help="override if BLS moves the SOC crosswalk")
     args = ap.parse_args()
 
     if not args.email:
@@ -115,7 +134,8 @@ def main() -> int:
 
     jobs = {"oews": lambda: fetch_oews(raw, args.oews_year, args.email, args.oews_url, manifest),
             "crosswalk": lambda: fetch_crosswalk(raw, args.email, args.crosswalk_url, manifest),
-            "cpi": lambda: fetch_cpi(raw, args.email, args.cpi_url, manifest)}
+            "cpi": lambda: fetch_cpi(raw, args.email, args.cpi_url, manifest),
+            "soc": lambda: fetch_soc_crosswalk(raw, args.email, args.soc_url, manifest)}
     failed = []
     for name in args.only or jobs:
         try:
@@ -127,9 +147,9 @@ def main() -> int:
                   f"--{name}-url <link>", file=sys.stderr)
 
     mpath.write_text(json.dumps(manifest, indent=2))
-    if not (raw / "exposure_soc.csv").exists():
-        print("[fetch] reminder: data/raw/exposure_soc.csv must be built by hand "
-              "(see data/README.md)")
+    if not any(raw.glob("exposure_*.csv")):
+        print("[fetch] reminder: the exposure measure must be placed by hand "
+              "(see data/README.md), then converted with step 00b")
     return 1 if failed else 0
 
 

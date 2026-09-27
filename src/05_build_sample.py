@@ -120,6 +120,15 @@ def main() -> int:
 
     # --- merge occupation-level task + exposure measures ---------------------
     occ = pd.read_csv(args.occ)
+    pre2020 = (df["occ_code_regime"] == "census2010").mean()
+    if pre2020 > 0:
+        print(f"[sample] WARNING: {pre2020:.1%} of records predate January 2020 and carry "
+              "2010 Census occupation codes,\n"
+              "         but occupation measures are keyed on 2018 Census codes. Codes that "
+              "changed in 2018 will\n"
+              "         merge to the wrong occupation or not at all. Recode them with the "
+              "Census 2010->2018\n"
+              "         crosswalk, or restrict to census2018 (see data/README.md).")
     df = df.merge(occ, left_on="OCC", right_on="cps_occ", how="left")
     miss = df["z3"].isna().mean()
     print(f"[sample] {miss:.1%} of person-records lack occupation measures after merge")
