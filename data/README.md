@@ -87,6 +87,27 @@ make robustness-exposure            # GPT-4-rated beta, LM-AIOE
 
 ## Required citation (IPUMS)
 
-Cite IPUMS CPS exactly as IPUMS specifies on the extract's download page
-(authors, version number, DOI). Take the version from the extract's DDI
-codebook, not from memory.
+Taken from the extract codebooks (`cps_00002.xml`, `cps_00003.xml`, both
+produced 27 September 2026). Cite it exactly as below in any publication or
+report that uses the data:
+
+> Sarah Flood, Miriam King, Renae Rodgers, Steven Ruggles, J. Robert Warren,
+> Daniel Backman, Etienne Breton, Grace Cooper, Julia A. Rivera Drew, Stephanie
+> Richards, David Van Riper, and Kari C.W. Williams. IPUMS CPS: Version 13.0
+> [dataset]. Minneapolis, MN: IPUMS, 2025. https://doi.org/10.18128/D030.V13.0
+
+The IPUMS licence also asks that the title and full citation of the
+dissertation be added to the IPUMS bibliography (http://bibliography.ipums.org/).
+
+### Extract used
+
+| Extract | Months | Variables | Status |
+|---|---|---|---|
+| #3 (`cps_00003`) | 71: January 2020 – December 2025 except October 2025; no ASEC | YEAR, MONTH, EARNWT, STATEFIP, AGE, SEX, EDUC, EMPSTAT, CLASSWKR, IND, OCC, EARNWEEK, EARNWEEK2 (+ IPUMS preselected identifiers and weights) | **used** (`07_Data/raw/ipums/`) |
+| #2 (`cps_00002`) | same 71 months, same variables | same | duplicate of #3; not used |
+| #1 (`cps_00001`) | 20 months only | 13 variables | incomplete; archived, not used |
+
+Codebook facts the pipeline relies on: EARNWEEK2 "not in universe" is
+999999.99 and EARNWEEK 9999.99 (step 05 drops both); EARNWEEK2 is top-coded
+at 2884.61 until March 2023 and at a monthly value from April 2024 (step 05
+flags each month's maximum); EARNWT is the earner-study weight. Unrounded EARNWEEK exists only to March 2023, so step 05 uses EARNWEEK2, which covers all 71 months. ASECFLAG is 2 (March basic) in March samples; step 05 drops any ASECFLAG = 1 record as a safeguard.
