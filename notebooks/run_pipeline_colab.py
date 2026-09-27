@@ -5,6 +5,8 @@
 #     text_representation:
 #       extension: .py
 #       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.19.5
 #   kernelspec:
 #     display_name: Python 3
 #     name: python3
@@ -33,7 +35,7 @@
 # 0. Configuration: edit these two paths only
 REPO = "patrickil07/doctoral_project"
 BRANCH = "main"
-DRIVE_DATA = "/content/drive/MyDrive/doctoral project/data/pp/data"   # holds raw/ interim/ out/
+DRIVE_DATA = "/content/drive/MyDrive/doctoral project/07_Data"   # holds raw/ interim/ out/
 
 # %%
 # 1. Mount Drive, fetch the code, link the data folder
@@ -81,8 +83,12 @@ for name in ("IPUMS_API_KEY", "BLS_CONTACT_EMAIL"):
 # ## Data acquisition
 
 # %%
-# 00  OEWS national, Census 2018 crosswalk, CPI-U  (exposure_soc.csv is built by hand)
-# !python src/00_fetch_public_inputs.py --oews-year 2019
+# 00  OEWS national (May 2021), Census + BLS SOC crosswalks, CPI-U
+# !python src/00_fetch_public_inputs.py
+
+# %%
+# 00b exposure measure (SOC 2010) -> SOC 2018
+# !python src/00b_convert_exposure.py
 
 # %%
 # 01  O*NET release pinned for the main specification

@@ -8,12 +8,26 @@ This repository holds **code only**. Chapter drafts, supervisor feedback,
 ethics paperwork and reading notes live in Google Drive. Data is never
 committed (see [`data/README.md`](data/README.md)).
 
+Google Drive layout (`My Drive/doctoral project/`):
+
+```
+01_Proposal/          research proposal versions
+02_Dissertation/      the dissertation draft (chapters)
+03_Literature/        papers, O*NET technical documentation, reading notes
+04_Supervision/       supervisor feedback, meeting notes
+05_Ethics_and_Admin/  ethics approval, forms, milestones
+06_Presentations/     slides
+07_Data/              raw/ interim/ out/ + sources/ (linked to data/ on Colab)
+99_Archive/           superseded drafts and old code copies (code now lives here on GitHub)
+```
+
 ## Layout
 
 ```
 .
 ├── src/                         the pipeline, one script per step, run in order
-│   ├── 00_fetch_public_inputs.py    OEWS, Census 2018 crosswalk, CPI-U
+│   ├── 00_fetch_public_inputs.py    OEWS, Census + BLS SOC crosswalks, CPI-U
+│   ├── 00b_convert_exposure.py      exposure measure → SOC 2018
 │   ├── 01_download_onet.py          pinned O*NET release
 │   ├── 02_build_task_composition.py four-part task composition + ILR balances
 │   ├── 03_crosswalk.py              SOC → CPS occupation codes, OEWS weights, exposure
@@ -55,6 +69,7 @@ table at the top.
 export BLS_CONTACT_EMAIL=you@example.com
 export IPUMS_API_KEY=...        # never commit; on Colab use the Secrets panel
 make fetch onet ipums usajobs   # data acquisition
+make exposure                   # exposure measure → SOC 2018
 make estimate                   # 02 → 03 → 05 → 07, rebuilding only what changed
 make robustness                 # pandemic window dropped
 ```
