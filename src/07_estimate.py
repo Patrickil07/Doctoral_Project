@@ -10,6 +10,11 @@ Equations:
   RQ4      Eq (5) re-run with ln W as outcome, with and without task controls;
            the difference decomposes composition vs price.
 
+Fixed effects: tau_st is state-by-quarter in all equations. In RQ1, RQ3 and RQ4
+it (and industry in RQ3) is absorbed by weighted within-group demeaning
+(alternating projections), which gives the same coefficients as including the
+dummies without building a design matrix with >1,000 columns.
+
 Inference: weighted by EARNWT, standard errors clustered on occupation
 (exposure varies at that level). Reference quarter 2022Q3.
 
@@ -22,6 +27,7 @@ import pathlib
 
 import numpy as np
 import pandas as pd
+import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 REF_Q = "2022Q3"
@@ -45,6 +51,45 @@ def _event_dummies(d: pd.DataFrame, cols: dict) -> tuple[pd.DataFrame, list]:
     return d, names
 
 
+def absorb(d: pd.DataFrame, cols: list, groups: list, w: np.ndarray,
+           tol: float = 1e-10, max_iter: int = 1000) -> np.ndarray:
+    """Weighted within-transformation of `cols` for one or more fixed effects.
+
+    Each fixed effect is swept out by subtracting its weighted group means; with
+    several fixed effects the sweeps alternate until the group means are ~0
+    (method of alternating projections). By Frisch-Waugh-Lovell, regressing the
+    transformed outcome on the transformed regressors reproduces the
+    coefficients of the regression with the dummies included.
+    """
+    X = d[cols].to_numpy(dtype=float).copy()
+    codes = [pd.factorize(d[g])[0] for g in groups]
+    wsum = [np.bincount(c, weights=w) for c in codes]
+    for _ in range(max_iter):
+        worst = 0.0
+        for c, ws in zip(codes, wsum):
+            for j in range(X.shape[1]):
+                means = np.bincount(c, weights=X[:, j] * w) / ws
+                worst = max(worst, float(np.abs(means).max()))
+                X[:, j] -= means[c]
+        if len(codes) == 1 or worst < tol:
+            break
+    return X
+
+
+def _fit_absorbed(d: pd.DataFrame, outcome: str, regressors: list, groups: list,
+                  cluster: str):
+    w = d["EARNWT"].to_numpy(dtype=float)
+    Z = absorb(d, [outcome] + regressors, groups, w)
+    m = sm.WLS(Z[:, 0], Z[:, 1:], weights=w).fit(
+        cov_type="cluster", cov_kwds={"groups": pd.factorize(d[cluster])[0]})
+    return (pd.Series(m.params, index=regressors), pd.Series(m.bse, index=regressors),
+            pd.Series(m.pvalues, index=regressors))
+
+
+def _state_quarter(d: pd.DataFrame) -> pd.Series:
+    return d["STATEFIP"].astype(str) + "_" + d["quarter"].astype(str)
+
+
 def event_study(df: pd.DataFrame, outcome: str, with_tasks: bool,
                 cluster: str = "OCC") -> pd.DataFrame:
     d = df.copy()
@@ -52,15 +97,14 @@ def event_study(df: pd.DataFrame, outcome: str, with_tasks: bool,
         "expq": lambda x: x["exposure"],
         "expJq": lambda x: x["exposure"] * x["early_career"],
     })
-    terms = names + ["early_career", "C(quarter)", "C(STATEFIP)", "SEX", "AGE", "EDUC"]
+    d["state_quarter"] = _state_quarter(d)
+    regs = names + ["early_career", "SEX", "AGE", "EDUC"]
     if with_tasks:
-        terms += ["z1", "z2", "z3", "ln_T"]
-    m = smf.wls(f"{outcome} ~ " + " + ".join(terms), data=d, weights=d["EARNWT"]).fit(
-        cov_type="cluster", cov_kwds={"groups": d[cluster]})
-    keep = [p for p in m.params.index if p.startswith("expJq_")]
-    out = pd.DataFrame({"term": keep, "estimate": m.params[keep].to_numpy(),
-                        "se": m.bse[keep].to_numpy(),
-                        "pvalue": m.pvalues[keep].to_numpy()})
+        regs += ["z1", "z2", "z3", "ln_T"]
+    b, se, p = _fit_absorbed(d, outcome, regs, ["state_quarter"], cluster)
+    keep = [r for r in regs if r.startswith("expJq_")]
+    out = pd.DataFrame({"term": keep, "estimate": b[keep].to_numpy(),
+                        "se": se[keep].to_numpy(), "pvalue": p[keep].to_numpy()})
     out["quarter"] = out["term"].str.replace("expJq_", "", regex=False)
     out["period"] = np.where(out["quarter"] < REF_Q, "pre", "post")
     return out.sort_values("quarter").reset_index(drop=True)
@@ -78,18 +122,20 @@ def pretrend_test(res: pd.DataFrame) -> dict:
 
 def hedonic(df: pd.DataFrame) -> pd.DataFrame:
     d = df.copy()
-    f = ("ln_w ~ z1 + z2 + z3 + ln_T"
-         " + z1:early_career + z2:early_career + z3:early_career"
-         " + z1:early_career:post + z2:early_career:post + z3:early_career:post"
-         " + early_career:post + early_career + C(STATEFIP) + C(quarter)"
-         " + SEX + AGE + EDUC + C(IND)")
-    m = smf.wls(f, data=d, weights=d["EARNWT"]).fit(
-        cov_type="cluster", cov_kwds={"groups": d["OCC"]})
-    keep = [p for p in m.params.index
-            if p.startswith(("z1", "z2", "z3", "ln_T")) or "early_career:post" in p]
-    return pd.DataFrame({"term": keep, "estimate": m.params[keep].to_numpy(),
-                         "se": m.bse[keep].to_numpy(),
-                         "pvalue": m.pvalues[keep].to_numpy()})
+    d["state_quarter"] = _state_quarter(d)
+    regs = ["z1", "z2", "z3", "ln_T"]
+    for z in ("z1", "z2", "z3"):
+        d[f"{z}:early_career"] = d[z] * d["early_career"]
+        d[f"{z}:early_career:post"] = d[z] * d["early_career"] * d["post"]
+    regs += [f"{z}:early_career" for z in ("z1", "z2", "z3")]
+    regs += [f"{z}:early_career:post" for z in ("z1", "z2", "z3")]
+    d["early_career:post"] = d["early_career"] * d["post"]
+    regs += ["early_career:post", "early_career", "SEX", "AGE", "EDUC"]
+    b, se, p = _fit_absorbed(d, "ln_w", regs, ["state_quarter", "IND"], "OCC")
+    keep = [r for r in regs if r.startswith(("z1", "z2", "z3", "ln_T"))
+            or "early_career:post" in r]
+    return pd.DataFrame({"term": keep, "estimate": b[keep].to_numpy(),
+                         "se": se[keep].to_numpy(), "pvalue": p[keep].to_numpy()})
 
 
 def early_share(df: pd.DataFrame) -> pd.DataFrame:

@@ -351,6 +351,19 @@ def fake_sample() -> pd.DataFrame:
     return d
 
 
+def test_absorbed_fixed_effects_match_dummy_regression():
+    import statsmodels.formula.api as smf
+    rng = np.random.default_rng(3)
+    n = 3000
+    d = pd.DataFrame({"g": rng.integers(0, 30, n), "h": rng.integers(0, 7, n),
+                      "x": rng.normal(size=n), "EARNWT": rng.uniform(.5, 2, n),
+                      "cl": rng.integers(0, 40, n)})
+    d["y"] = 0.7 * d["x"] + d["g"] * 0.1 + d["h"] * 0.3 + rng.normal(size=n)
+    dummy = smf.wls("y ~ x + C(g) + C(h)", data=d, weights=d["EARNWT"]).fit()
+    b, _, _ = est._fit_absorbed(d, "y", ["x"], ["g", "h"], "cl")
+    assert b["x"] == pytest.approx(dummy.params["x"], abs=1e-8)
+
+
 def test_estimation_specs_run(fake_sample):
     rq1 = est.event_study(fake_sample, "z3", with_tasks=False)
     assert est.REF_Q not in set(rq1["quarter"]) and len(rq1) == 11
