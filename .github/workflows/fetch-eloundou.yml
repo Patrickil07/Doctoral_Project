@@ -1,0 +1,32 @@
+# Downloads the pinned Eloundou et al. (2024) exposure file, verifies its
+# SHA-256, and publishes it as a run artifact (kept 30 days) for copying to
+# Drive 07_Data/raw/. Nothing is committed to the repository.
+name: fetch-eloundou
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/research-pipeline-github-c2r7vh]
+    paths: [.github/workflows/fetch-eloundou.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -q -r requirements.txt
+      - run: python src/00_fetch_public_inputs.py --only eloundou
+      - run: sha256sum data/raw/eloundou_occ_level.csv && wc -l data/raw/eloundou_occ_level.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eloundou_occ_level
+          path: |
+            data/raw/eloundou_occ_level.csv
+            data/raw/_public_inputs_manifest.json
+          retention-days: 30
