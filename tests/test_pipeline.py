@@ -172,9 +172,38 @@ def test_exposure_conversion_split_and_merge(tmp_path):
                         "exposure": [0.8, 1.2, 1.0, 1.3, 0.5]})
     out = conv.convert(exp, xw).set_index("soc2018")
     assert out.loc["15-1252", "exposure"] == pytest.approx(1.0)     # merge -> mean
-    assert out.loc["15-1252", "n_soc2010"] == 2
+    assert out.loc["15-1252", "n_source"] == 2
     assert out.loc["15-1242", "exposure"] == out.loc["15-1243", "exposure"] == 1.0  # split
     assert out.loc["11-1011", "exposure"] == 1.3
+
+
+def test_eloundou_onet_soc_codes_collapse_to_six_digit(tmp_path):
+    f = tmp_path / "occ_level.csv"
+    pd.DataFrame({
+        "O*NET-SOC Code": ["15-1211.00", "15-1211.01", "15-1252.00", "13-2011.00"],
+        "Title": ["Systems Analysts", "Health Informatics", "Software Dev", "Accountants"],
+        "dv_rating_beta": [0.75, 0.48, 0.87, 0.56],
+        "human_rating_beta": [0.40, 0.60, 0.45, 0.52]}).to_csv(f, index=False)
+    out = conv.load_exposure(f, "human_rating_beta").set_index("soc")
+    assert list(out.index) == ["13-2011", "15-1211", "15-1252"]
+    assert out.loc["15-1211", "exposure"] == pytest.approx(0.50)     # mean of detail
+    assert out.loc["15-1211", "n_source"] == 2
+    gpt4 = conv.load_exposure(f, "dv_rating_beta").set_index("soc")
+    assert gpt4.loc["15-1252", "exposure"] == pytest.approx(0.87)
+    with pytest.raises(ValueError):
+        conv.load_exposure(f, "no_such_column")
+
+
+def test_step00b_default_run_writes_soc2018_file(tmp_path):
+    src = tmp_path / "occ_level.csv"
+    pd.DataFrame({"O*NET-SOC Code": ["15-1252.00", "15-1253.00"],
+                  "human_rating_beta": [0.45, 0.61]}).to_csv(src, index=False)
+    out = tmp_path / "exposure_soc2018.csv"
+    r = _run("00b_convert_exposure.py", "--exposure", str(src), "--out", str(out))
+    assert r.returncode == 0, r.stderr
+    df = pd.read_csv(out, dtype={"soc2018": str})
+    assert list(df.columns) == ["soc2018", "exposure", "n_source"]
+    assert set(df["soc2018"]) == {"15-1252", "15-1253"}
 
 
 # --- step 04 -------------------------------------------------------------------
