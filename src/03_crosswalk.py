@@ -16,9 +16,9 @@ FIXES in this version
      the exact header text in your file.
 
 Inputs (all free, all public):
-  data/raw/oews_national.xlsx          OEWS national, pre-period year (2019/2021)
+  data/raw/oews_national.xlsx          OEWS national, May 2021 (first year fully on SOC 2018)
   data/raw/census_soc_crosswalk.xlsx   Census 2018 occupation code list w/ crosswalk
-  data/raw/exposure_soc.csv            columns: soc2018,exposure
+  data/interim/exposure_soc2018.csv    columns: soc2018,exposure (step 00b)
 """
 import argparse
 import pathlib
@@ -80,6 +80,9 @@ def load_crosswalk(path: pathlib.Path, occ_col: str | None = None,
             out = df[[oc, sc]].copy()
             out.columns = ["cps_occ", "soc_pattern"]          # set, never rename-collide
             out = out.dropna()
+            # keep real occupation rows only: section headers carry code ranges
+            # such as "0010-0440" / "11-0000 - 13-0000" and are not occupations
+            out = out[out["cps_occ"].astype(str).str.strip().str.fullmatch(r"\d{4}")]
             out["soc_pattern"] = (out["soc_pattern"].astype(str).str.strip().str.upper()
                                   .str.extract(r"(\d{2}-[\dX]{4})")[0])
             out["cps_occ"] = pd.to_numeric(
@@ -97,10 +100,18 @@ def load_crosswalk(path: pathlib.Path, occ_col: str | None = None,
 
 
 def expand_wildcards(xw: pd.DataFrame, known_socs: pd.Series) -> pd.DataFrame:
-    """Turn '13-20XX' into every detailed SOC in the task data starting '13-20'."""
+    """Expand non-detailed SOC codes to the detailed SOCs in the task data.
+
+    '13-20XX' -> every known SOC starting '13-20'. A broad-group code ending in
+    0 that is not itself a detailed SOC (e.g. Census '15-1230' for 15-1231 and
+    15-1232) is treated the same way, as '15-123X'.
+    """
     known = sorted(set(known_socs.dropna().astype(str)))
+    known_set = set(known)
     rows, unmatched = [], []
     for occ, pat in xw[["cps_occ", "soc_pattern"]].itertuples(index=False):
+        if pat.endswith("0") and pat not in known_set and "X" not in pat:
+            pat = pat[:-1] + "X"
         if "X" not in pat:
             rows.append((occ, pat)); continue
         rx = re.compile("^" + pat.replace("X", r"\d") + "$")
@@ -123,7 +134,7 @@ def main() -> int:
     ap.add_argument("--tasks", default="data/interim/task_composition.csv")
     ap.add_argument("--oews", default="data/raw/oews_national.xlsx")
     ap.add_argument("--crosswalk", default="data/raw/census_soc_crosswalk.xlsx")
-    ap.add_argument("--exposure", default="data/raw/exposure_soc.csv")
+    ap.add_argument("--exposure", default="data/interim/exposure_soc2018.csv")
     ap.add_argument("--out", default="data/interim/occ_measures.csv")
     ap.add_argument("--occ-col", default=OCC_COL)
     ap.add_argument("--soc-col", default=SOC_COL)

@@ -29,6 +29,7 @@ def load(stem: str):
     return mod
 
 
+conv = load("00b_convert_exposure")
 task = load("02_build_task_composition")
 xwalk = load("03_crosswalk")
 ipums = load("04_ipums_extract")
@@ -125,6 +126,55 @@ def test_wildcard_expansion():
     out = xwalk.expand_wildcards(xw, pd.Series(["13-2011", "13-2051", "13-1111", "15-1252"]))
     got = set(map(tuple, out.to_numpy().tolist()))
     assert got == {(800, "13-2011"), (800, "13-2051"), (1005, "15-1252")}
+
+
+def test_broad_soc_codes_expand_like_wildcards():
+    xw = pd.DataFrame({"cps_occ": [1050, 1010], "soc_pattern": ["15-1230", "15-1251"]})
+    out = xwalk.expand_wildcards(xw, pd.Series(["15-1231", "15-1232", "15-1251"]))
+    got = set(map(tuple, out.to_numpy().tolist()))
+    assert got == {(1050, "15-1231"), (1050, "15-1232"), (1010, "15-1251")}
+
+
+def test_crosswalk_reader_skips_section_header_rows(tmp_path):
+    """Census list rows like '0010-0440 | 11-0000' are headings, not occupations."""
+    rows = [["2018 Census Occupation Code List", None, None],
+            ["2018 Census Title", "2018 Census Code", "2018 SOC Code"],
+            ["Management Occupations:", "0010-0440", "11-0000"],
+            ["Chief executives", "0010", "11-1011"],
+            ["General and operations managers", "0020", "11-1021"],
+            ["Legislators", "0030", "11-1031"],
+            ["Computer and mathematical occupations:", "1005-1240", "15-0000"],
+            ["Software developers", "1021", "15-1252"],
+            ["Database administrators and architects", "1065", "15-124X"]]
+    f = tmp_path / "xw.xlsx"
+    pd.DataFrame(rows).to_excel(f, header=False, index=False)
+    xw = xwalk.load_crosswalk(f)
+    assert set(xw["cps_occ"]) == {10, 20, 30, 1021, 1065}
+    assert not xw["soc_pattern"].str.endswith("0000").any()
+
+
+# --- step 00b -----------------------------------------------------------------
+def test_exposure_conversion_split_and_merge(tmp_path):
+    # BLS layout: title rows above the header
+    rows = [["2010 to 2018 SOC Crosswalk", None, None, None],
+            [None, None, None, None],
+            ["2010 SOC Code", "2010 SOC Title", "2018 SOC Code", "2018 SOC Title"],
+            ["15-1132", "Software Developers, Applications", "15-1252", "Software Developers"],
+            ["15-1133", "Software Developers, Systems", "15-1252", "Software Developers"],
+            ["15-1143", "Computer Network Architects", "15-1241", "Network Architects"],
+            ["15-1141", "Database Administrators", "15-1242", "Database Administrators"],
+            ["15-1141", "Database Administrators", "15-1243", "Database Architects"],
+            ["11-1011", "Chief Executives", "11-1011", "Chief Executives"]]
+    f = tmp_path / "soc.xlsx"
+    pd.DataFrame(rows).to_excel(f, header=False, index=False)
+    xw = conv.load_soc_crosswalk(f)
+    exp = pd.DataFrame({"soc": ["15-1132", "15-1133", "15-1141", "11-1011", "15-1143"],
+                        "exposure": [0.8, 1.2, 1.0, 1.3, 0.5]})
+    out = conv.convert(exp, xw).set_index("soc2018")
+    assert out.loc["15-1252", "exposure"] == pytest.approx(1.0)     # merge -> mean
+    assert out.loc["15-1252", "n_soc2010"] == 2
+    assert out.loc["15-1242", "exposure"] == out.loc["15-1243", "exposure"] == 1.0  # split
+    assert out.loc["11-1011", "exposure"] == 1.3
 
 
 # --- step 04 -------------------------------------------------------------------
