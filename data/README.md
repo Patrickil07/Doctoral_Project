@@ -21,7 +21,7 @@ data/
 | `raw/census_soc_crosswalk.xlsx` | U.S. Census Bureau, 2018 Census Occupation Code List with Crosswalk (26 Sep 2019) | `make fetch` | URL, SHA-256 |
 | `raw/soc_2010_to_2018_crosswalk.xlsx` | BLS SOC 2010 → 2018 crosswalk | `make fetch` | URL, SHA-256 |
 | `raw/cpi_u.csv` | BLS CPI-U, all items, U.S. city average, NSA (`CUUR0000SA0`) → `year,month,cpi` | `make fetch` | series id, download date |
-| `raw/exposure_soc2010.csv` | Felten, Raj & Seamans (2023), **Language-Modeling AIOE**, 774 occupations on **SOC 2010** codes (`soc2010,exposure`) | exported from `Language Modeling AIOE and AIIE.xlsx`, sheet *LM AIOE* | paper, file version, download date |
+| `raw/lm_aioe.xlsx` | Felten, Raj & Seamans (2023), **Language-Modeling AIOE**, 774 occupations on **SOC 2010** codes | copy of `Language Modeling AIOE and AIIE.xlsx` (sheet *LM AIOE*); original in `07_Data/sources/` | paper, file version, download date |
 | `interim/exposure_soc2018.csv` | the exposure measure mapped to SOC 2018 | `make exposure` / `src/00b_convert_exposure.py` | mapping rules (split = copy, merge = mean) and the merged codes it lists |
 | `raw/ipums/` | IPUMS CPS basic monthly samples 2019-01 to 2025-12 (`.xml` DDI + `.dat.gz`) | `make ipums` / `src/04_ipums_extract.py` (needs `IPUMS_API_KEY`, CPS registration) | extract number + IPUMS CPS version from the DDI |
 | `raw/usajobs/` | USAJOBS historic JOA API (public, no key) | `make usajobs` / `src/06_usajobs_historic.py` | series list, date range, retrieval dates |
@@ -56,7 +56,7 @@ downloads exactly as obtained, for provenance.
 export BLS_CONTACT_EMAIL=you@example.com
 export IPUMS_API_KEY=...            # never commit this
 make fetch onet ipums usajobs       # acquisition
-# place data/raw/exposure_soc2010.csv (see table above)
+# place data/raw/lm_aioe.xlsx (see table above)
 make exposure                       # step 00b
 make estimate                       # steps 02 → 03 → 05 → 07
 make robustness

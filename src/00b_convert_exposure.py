@@ -20,13 +20,17 @@ A measure already on SOC 2018 (e.g. Eloundou et al. 2024, O*NET-SOC 2019)
 needs no conversion: pass --already-2018 to validate and copy it.
 
 Inputs
-  data/raw/exposure_soc2010.csv               columns: soc2010,exposure
+  data/raw/lm_aioe.xlsx                       Felten, Raj & Seamans LM-AIOE (SOC 2010),
+                                              or any .csv/.xlsx with a SOC column and
+                                              a score column (--column)
   data/raw/soc_2010_to_2018_crosswalk.xlsx    BLS (fetched by step 00)
 Output
   data/interim/exposure_soc2018.csv           columns: soc2018,exposure,n_soc2010
 
 Usage:
     python src/00b_convert_exposure.py
+    python src/00b_convert_exposure.py --exposure data/raw/AIOE_DataAppendix.xlsx \
+        --sheet "Appendix A" --column AIOE --out data/interim/exposure_aioe_soc2018.csv
     python src/00b_convert_exposure.py --exposure data/raw/eloundou_soc2018.csv --already-2018
 """
 import argparse
@@ -38,15 +42,33 @@ import pandas as pd
 SOC = r"^\d{2}-\d{4}$"
 
 
-def load_exposure(path: pathlib.Path) -> pd.DataFrame:
-    df = pd.read_csv(path, dtype=str)
-    df.columns = [c.strip().lower() for c in df.columns]
-    code = next((c for c in df.columns if c.startswith("soc")), None)
-    if code is None or "exposure" not in df.columns:
-        raise ValueError(f"{path} needs a soc* column and an 'exposure' column; "
-                         f"found {list(df.columns)}")
-    out = pd.DataFrame({"soc": df[code].str.strip(),
-                        "exposure": pd.to_numeric(df["exposure"], errors="coerce")})
+def load_exposure(path: pathlib.Path, sheet: str | None = None,
+                  column: str | None = None) -> pd.DataFrame:
+    """Read an exposure file (.csv or .xlsx) into columns soc, exposure.
+
+    The SOC column is the first whose name contains 'soc'. The score column is
+    --column if given, else 'exposure', else the last numeric column.
+    """
+    if path.suffix.lower() in (".xlsx", ".xls"):
+        df = pd.read_excel(path, sheet_name=sheet or 0)
+    else:
+        df = pd.read_csv(path)
+    df.columns = [str(c).strip() for c in df.columns]
+    code = next((c for c in df.columns if "soc" in c.lower()), None)
+    if column:
+        value = column
+    elif "exposure" in [c.lower() for c in df.columns]:
+        value = next(c for c in df.columns if c.lower() == "exposure")
+    else:
+        numeric = [c for c in df.columns
+                   if pd.to_numeric(df[c], errors="coerce").notna().mean() > 0.9]
+        value = numeric[-1] if numeric else None
+    if code is None or value not in df.columns:
+        raise ValueError(f"{path}: need a SOC code column and a score column "
+                         f"(pass --column); found {list(df.columns)}")
+    print(f"[exposure] {path.name}: codes from '{code}', scores from '{value}'")
+    out = pd.DataFrame({"soc": df[code].astype(str).str.strip(),
+                        "exposure": pd.to_numeric(df[value], errors="coerce")})
     bad = ~out["soc"].str.match(SOC, na=False) | out["exposure"].isna()
     if bad.any():
         print(f"[exposure] dropping {int(bad.sum())} rows without a detailed SOC code "
@@ -94,14 +116,16 @@ def convert(exp: pd.DataFrame, xw: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--exposure", default="data/raw/exposure_soc2010.csv")
+    ap.add_argument("--exposure", default="data/raw/lm_aioe.xlsx")
+    ap.add_argument("--sheet", help="Excel sheet (default: first)")
+    ap.add_argument("--column", help="score column (default: 'exposure' or last numeric)")
     ap.add_argument("--crosswalk", default="data/raw/soc_2010_to_2018_crosswalk.xlsx")
     ap.add_argument("--out", default="data/interim/exposure_soc2018.csv")
     ap.add_argument("--already-2018", action="store_true",
                     help="input is already on SOC 2018: validate and copy")
     args = ap.parse_args()
 
-    exp = load_exposure(pathlib.Path(args.exposure))
+    exp = load_exposure(pathlib.Path(args.exposure), args.sheet, args.column)
     print(f"[exposure] {len(exp)} occupations read from {args.exposure}")
 
     if args.already_2018:
