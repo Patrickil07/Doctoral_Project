@@ -24,10 +24,20 @@ Step 02 **stops** if any name here is missing from the O\*NET release, and
   `Communicating with Persons Outside Your Organization` →
   `Communicating with People Outside the Organization` (the official GWA
   name). These two entries stopped step 02 against release 30.3.
-- **Still open:** O\*NET's 41 GWAs include three that are not assigned here,
-  so step 02 will warn and drop them:
-  `Judging the Qualities of Objects, Services, or People`,
-  `Staffing Organizational Units`,
-  `Monitoring and Controlling Resources`.
-  Assign each to a part (and justify it in Chapter 3) so the composition is
-  exhaustive before final estimation.
+- **Three remaining GWAs assigned** (O\*NET 30.3 has 41 GWAs; all 41 are now
+  mapped, so the composition is exhaustive). Each follows the rule the rest
+  of the file already uses:
+  - `Judging the Qualities of Objects, Services, or People` →
+    `c1_nonroutine_analytic`. O\*NET places it among the *Mental Processes*
+    (with Analyzing Data, Making Decisions, Evaluating Compliance), which this
+    file assigns to c1; it is evaluative judgement, not a codified procedure.
+  - `Staffing Organizational Units` → `c2_nonroutine_interpersonal`.
+    Recruiting, interviewing and hiring are face-to-face judgements about
+    people, like Coaching and Developing Others and Developing and Building
+    Teams (c2).
+  - `Monitoring and Controlling Resources` → `c3_routine_cognitive`. O\*NET
+    groups it with *Administering* (monitoring budgets and spending) alongside
+    Performing Administrative Activities, which this file assigns to c3.
+  These are defensible defaults, not the only reasonable choices: state them
+  in Chapter 3, and report the sensitivity check in which the three are
+  dropped (the previous mapping, commit `c8958f4`).
