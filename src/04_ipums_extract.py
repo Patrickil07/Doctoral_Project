@@ -44,6 +44,26 @@ def month_samples(start: str, end: str) -> list[str]:
     return out
 
 
+def available_samples(client, collection: str = "cps", page_size: int = 500) -> set[str]:
+    """Every sample id IPUMS lists for `collection`, following all result pages.
+
+    ipumspy's get_all_sample_info reads only the first page, which returns an
+    arbitrary subset of CPS samples; relying on it drops real months.
+    """
+    names: set[str] = set()
+    page = 1
+    while True:
+        r = client.get(f"{client.base_url}/metadata/samples",
+                       params={"collection": collection, "version": client.api_version,
+                               "pageNumber": page, "pageSize": page_size}).json()
+        data = r.get("data") or []
+        names.update(item["name"] for item in data)
+        total = r.get("totalCount")
+        if not data or (total is not None and len(names) >= total) or len(data) < page_size:
+            return names
+        page += 1
+
+
 def split_available(wanted: list[str], available) -> tuple[list[str], list[str]]:
     """Split requested sample ids into those IPUMS offers and those it does not."""
     have = set(available)
@@ -57,6 +77,8 @@ def main() -> int:
     ap.add_argument("--end", default="2025-12")
     ap.add_argument("--outdir", default="data/raw/ipums")
     ap.add_argument("--description", default="Pipeline Paradox CPS ORG 2020-2025")
+    ap.add_argument("--max-missing", type=int, default=2,
+                    help="stop if more requested months than this are unavailable")
     ap.add_argument("--force", action="store_true",
                     help="submit a new extract even if one is already downloaded")
     args = ap.parse_args()
@@ -84,11 +106,14 @@ def main() -> int:
 
     client = IpumsApiClient(key)
     wanted = month_samples(args.start, args.end)
-    samples, missing = split_available(wanted, client.get_all_sample_info("cps"))
+    samples, missing = split_available(wanted, available_samples(client))
     for s in missing:
         print(f"[ipums] WARNING: IPUMS has no sample {s}; that month is not requested")
-    if not samples:
-        print("[ipums] none of the requested months are available", file=sys.stderr)
+    if len(missing) > args.max_missing:
+        print(f"[ipums] {len(missing)} of {len(wanted)} months are not listed by IPUMS "
+              f"(limit {args.max_missing}); stopping so months are not dropped silently. "
+              "Check the list above against the IPUMS CPS sample page, or raise "
+              "--max-missing if the gaps are real.", file=sys.stderr)
         return 1
     print(f"[ipums] requesting {len(samples)} monthly samples "
           f"({samples[0]} to {samples[-1]}), {len(VARS)} variables")

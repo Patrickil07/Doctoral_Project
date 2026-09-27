@@ -232,6 +232,25 @@ def test_unavailable_samples_are_left_out():
     assert ok == ["cps2025_09b", "cps2025_11b"] and missing == ["cps2025_10b"]
 
 
+def test_available_samples_reads_every_page():
+    names = [f"cps{y}_{m:02d}b" for y in range(2020, 2026) for m in range(1, 13)]
+
+    class FakeClient:
+        base_url, api_version = "https://api.ipums.org", 2
+
+        def get(self, url, params):
+            n, size = params["pageNumber"], params["pageSize"]
+            page = names[(n - 1) * size:n * size]
+
+            class R:
+                def json(self_inner):
+                    return {"data": [{"name": x} for x in page], "totalCount": len(names)}
+            return R()
+
+    got = ipums.available_samples(FakeClient(), page_size=10)
+    assert got == set(names)
+
+
 # --- step 05 -------------------------------------------------------------------
 def test_sample_starts_january_2020():
     d = pd.DataFrame({"YEAR": [2019, 2019, 2020, 2020, 2025],
