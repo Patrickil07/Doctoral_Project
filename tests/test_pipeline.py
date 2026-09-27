@@ -364,6 +364,30 @@ def test_absorbed_fixed_effects_match_dummy_regression():
     assert b["x"] == pytest.approx(dummy.params["x"], abs=1e-8)
 
 
+def test_common_early_career_shock_is_not_attributed_to_exposure():
+    """A post-2022 wage shift for ALL early-career workers, unrelated to exposure,
+    is absorbed by the early-career x quarter effects and leaves gamma_q ~ 0 —
+    even when early-career workers sit disproportionately in exposed occupations."""
+    rng = np.random.default_rng(7)
+    occs = np.arange(40)
+    expo = dict(zip(occs, rng.uniform(0, 1, 40)))
+    quarters = [str(p) for p in pd.period_range("2021Q1", "2023Q4", freq="Q")]
+    n = 30000
+    d = pd.DataFrame({"OCC": rng.choice(occs, n), "quarter": rng.choice(quarters, n),
+                      "STATEFIP": rng.choice([6, 36, 48], n), "SEX": rng.choice([1, 2], n),
+                      "AGE": rng.integers(22, 56, n), "EDUC": rng.choice([73, 111], n),
+                      "EARNWT": rng.uniform(.5, 2, n)})
+    d["exposure"] = d["OCC"].map(expo)
+    d["early_career"] = (rng.uniform(size=n) < 0.2 + 0.6 * d["exposure"]).astype(int)
+    post = (d["quarter"] >= "2022Q4").astype(int)
+    d["ln_w"] = 6.5 + 0.3 * d["early_career"] * post + rng.normal(0, .1, n)
+    res = est.event_study(d, "ln_w", with_tasks=False)
+    # without these effects the post-period estimates average ~+0.30 (the whole
+    # common shock); with them they are noise around zero
+    assert abs(res.loc[res["period"] == "post", "estimate"].mean()) < 0.02
+    assert (res["estimate"] / res["se"]).abs().max() < 4
+
+
 def test_estimation_specs_run(fake_sample):
     rq1 = est.event_study(fake_sample, "z3", with_tasks=False)
     assert est.REF_Q not in set(rq1["quarter"]) and len(rq1) == 11

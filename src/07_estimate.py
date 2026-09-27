@@ -10,8 +10,9 @@ Equations:
   RQ4      Eq (5) re-run with ln W as outcome, with and without task controls;
            the difference decomposes composition vs price.
 
-Fixed effects: tau_st is state-by-quarter in all equations. In RQ1, RQ3 and RQ4
-it (and industry in RQ3) is absorbed by weighted within-group demeaning
+Fixed effects: tau_st is state-by-quarter in all equations; RQ1 and RQ4 also
+include early-career-by-quarter effects (rho J_i x tau_t). In RQ1, RQ3 and RQ4
+these (and industry in RQ3) are absorbed by weighted within-group demeaning
 (alternating projections), which gives the same coefficients as including the
 dummies without building a design matrix with >1,000 columns.
 
@@ -98,10 +99,13 @@ def event_study(df: pd.DataFrame, outcome: str, with_tasks: bool,
         "expJq": lambda x: x["exposure"] * x["early_career"],
     })
     d["state_quarter"] = _state_quarter(d)
-    regs = names + ["early_career", "SEX", "AGE", "EDUC"]
+    # rho (J_i x tau_t): early-career x quarter effects absorb economy-wide shifts
+    # in the early-career gap; the early_career main effect is nested in them.
+    d["early_quarter"] = d["early_career"].astype(int).astype(str) + "_" + d["quarter"].astype(str)
+    regs = names + ["SEX", "AGE", "EDUC"]
     if with_tasks:
         regs += ["z1", "z2", "z3", "ln_T"]
-    b, se, p = _fit_absorbed(d, outcome, regs, ["state_quarter"], cluster)
+    b, se, p = _fit_absorbed(d, outcome, regs, ["state_quarter", "early_quarter"], cluster)
     keep = [r for r in regs if r.startswith("expJq_")]
     out = pd.DataFrame({"term": keep, "estimate": b[keep].to_numpy(),
                         "se": se[keep].to_numpy(), "pvalue": p[keep].to_numpy()})
