@@ -25,7 +25,7 @@ data/
 | `raw/lm_aioe.xlsx` | Robustness measure: Felten, Raj & Seamans (2023), Language-Modeling AIOE, 774 occupations on **SOC 2010** codes | copy of `Language Modeling AIOE and AIIE.xlsx` (sheet *LM AIOE*); original in `07_Data/sources/` | paper, file version, download date |
 | `interim/exposure_soc2018.csv` | primary measure: Eloundou **human-rated β** (E1 + 0.5·E2) on 6-digit SOC 2018 (O\*NET-SOC detail averaged) | `make exposure` / `src/00b_convert_exposure.py` | column used, aggregation rule |
 | `interim/exposure_{gpt4beta,lmaioe}_soc2018.csv` | robustness measures: Eloundou GPT-4-rated β; LM-AIOE mapped from SOC 2010 (split = copy, merge = mean) | `make robustness-exposure` | as above, plus the merged codes step 00b lists |
-| `raw/ipums/` | IPUMS CPS basic monthly samples 2019-01 to 2025-12 (`.xml` DDI + `.dat.gz`) | `make ipums` / `src/04_ipums_extract.py` (needs `IPUMS_API_KEY`, CPS registration) | extract number + IPUMS CPS version from the DDI |
+| `raw/ipums/` | IPUMS CPS basic monthly samples 2020-01 to 2025-12 (`.xml` DDI + `.dat.gz`) | `make ipums` / `src/04_ipums_extract.py` (needs `IPUMS_API_KEY`, CPS registration) | extract number + IPUMS CPS version from the DDI |
 | `raw/usajobs/` | USAJOBS historic JOA API (public, no key) | `make usajobs` / `src/06_usajobs_historic.py` | series list, date range, retrieval dates |
 
 ### Coding pitfalls found in the inputs
@@ -46,9 +46,12 @@ data/
   is still before the treatment date.
 - **CPS occupation codes before 2020.** CPS records before January 2020 carry
   2010 Census occupation codes; the occupation measures are keyed on 2018
-  Census codes. Step 05 warns about this. Either recode 2019 records with the
-  *2010 to 2018 Crosswalk* sheet of `census_soc_crosswalk.xlsx`, or restrict to
-  the `census2018` regime (proposal Section 6.6). This choice is open.
+  Census codes. **Decision: the sample starts in January 2020.** Step 04
+  requests 2020-01 onwards and step 05 enforces it (an earlier `--start` is
+  refused). Consequences to report: the pre-treatment window is 2020Q1-2022Q2
+  (10 quarters, reference 2022Q3), and it overlaps the pandemic window
+  (2020Q2-2021Q2); with `--drop-pandemic` five pre-treatment quarters remain
+  (2020Q1, 2021Q3-2022Q2). Earnings are still expressed in 2019 dollars.
 
 ## Where the data lives
 

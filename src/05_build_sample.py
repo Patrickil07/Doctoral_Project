@@ -10,9 +10,11 @@ Implements every cleaning rule the proposal commits to in Sections 6.2 and 6.6:
     comparable after the Census privacy-protection changes
   * allocated (imputed) earnings EXCLUDED by default — Hirsch & Schumacher (2004)
     match bias — restorable via --keep-allocated
+  * sample period January 2020 onwards: CPS switched to 2018 Census occupation
+    codes in January 2020, and the occupation measures are keyed on those codes,
+    so earlier records would merge to the wrong occupations
   * CPI-U deflation to 2019 dollars
   * top-code flagging so the dynamic top-code from Apr 2023 can be trimmed
-  * occupation-coding regime flag for the January 2020 break
 
 Usage:
     python src/05_build_sample.py --ipums data/raw/ipums \
@@ -27,6 +29,21 @@ import numpy as np
 import pandas as pd
 
 KNOWLEDGE_MAJOR = {"13", "15", "17", "19", "23", "27", "43"}
+# First CPS month coded with the 2018 Census occupation classification.
+SAMPLE_START = "2020-01"
+
+
+def restrict_period(df: pd.DataFrame, start: str = SAMPLE_START) -> pd.DataFrame:
+    """Keep records from `start` (YYYY-MM) onwards.
+
+    Starting earlier than 2020-01 is refused: those records carry 2010 Census
+    occupation codes, which do not match the 2018-coded occupation measures.
+    """
+    if start < SAMPLE_START:
+        raise ValueError(f"--start {start} is before {SAMPLE_START}: pre-2020 CPS records "
+                         "use 2010 Census occupation codes and cannot be merged")
+    y, m = (int(x) for x in start.split("-"))
+    return df[(df["YEAR"] > y) | ((df["YEAR"] == y) & (df["MONTH"] >= m))]
 
 
 def load_ipums(ddir: pathlib.Path) -> pd.DataFrame:
@@ -53,11 +70,17 @@ def main() -> int:
     ap.add_argument("--out", default="data/out/analysis_sample.parquet")
     ap.add_argument("--keep-allocated", action="store_true")
     ap.add_argument("--include-midband", action="store_true")
+    ap.add_argument("--start", default=SAMPLE_START,
+                    help="first month YYYY-MM (not earlier than 2020-01)")
     args = ap.parse_args()
 
     df = load_ipums(pathlib.Path(args.ipums))
     n0 = len(df)
     log = [("raw records", n0)]
+
+    # --- sample period (2018 Census occupation codes only) -------------------
+    df = restrict_period(df, args.start)
+    log.append((f"{args.start} onwards (2018 Census occupation codes)", len(df)))
 
     # --- ORG earner universe -------------------------------------------------
     df = df[df["EARNWT"] > 0]
@@ -115,20 +138,10 @@ def main() -> int:
     df["date"] = pd.to_datetime(dict(year=df["YEAR"], month=df["MONTH"], day=1))
     df["quarter"] = df["date"].dt.to_period("Q").astype(str)
     df["post"] = (df["date"] >= "2022-12-01").astype(int)
-    df["occ_code_regime"] = np.where(df["date"] < "2020-01-01", "census2010", "census2018")
     df["pandemic_window"] = df["date"].between("2020-04-01", "2021-06-30").astype(int)
 
     # --- merge occupation-level task + exposure measures ---------------------
     occ = pd.read_csv(args.occ)
-    pre2020 = (df["occ_code_regime"] == "census2010").mean()
-    if pre2020 > 0:
-        print(f"[sample] WARNING: {pre2020:.1%} of records predate January 2020 and carry "
-              "2010 Census occupation codes,\n"
-              "         but occupation measures are keyed on 2018 Census codes. Codes that "
-              "changed in 2018 will\n"
-              "         merge to the wrong occupation or not at all. Recode them with the "
-              "Census 2010->2018\n"
-              "         crosswalk, or restrict to census2018 (see data/README.md).")
     df = df.merge(occ, left_on="OCC", right_on="cps_occ", how="left")
     miss = df["z3"].isna().mean()
     print(f"[sample] {miss:.1%} of person-records lack occupation measures after merge")

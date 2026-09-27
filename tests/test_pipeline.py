@@ -34,6 +34,7 @@ task = load("02_build_task_composition")
 xwalk = load("03_crosswalk")
 ipums = load("04_ipums_extract")
 usaj = load("06_usajobs_historic")
+sample = load("05_build_sample")
 est = load("07_estimate")
 
 
@@ -210,6 +211,17 @@ def test_step00b_default_run_writes_soc2018_file(tmp_path):
 def test_month_samples():
     s = ipums.month_samples("2019-01", "2025-12")
     assert len(s) == 84 and s[0] == "cps2019_01b" and s[-1] == "cps2025_12b"
+
+
+# --- step 05 -------------------------------------------------------------------
+def test_sample_starts_january_2020():
+    d = pd.DataFrame({"YEAR": [2019, 2019, 2020, 2020, 2025],
+                      "MONTH": [1, 12, 1, 6, 12]})
+    kept = sample.restrict_period(d)
+    assert list(zip(kept.YEAR, kept.MONTH)) == [(2020, 1), (2020, 6), (2025, 12)]
+    assert len(sample.restrict_period(d, "2020-06")) == 2
+    with pytest.raises(ValueError):
+        sample.restrict_period(d, "2019-01")
 
 
 # --- step 06 -------------------------------------------------------------------
