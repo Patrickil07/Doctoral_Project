@@ -144,7 +144,9 @@ def main() -> int:
                     "checksum check)")
     args = ap.parse_args()
 
-    if not args.email:
+    # Only the BLS and Census downloads need a contact address; the Eloundou
+    # file comes from GitHub and can be fetched without one.
+    if not args.email and set(args.only or ["oews"]) - {"eloundou"}:
         print("[fetch] pass --email or set BLS_CONTACT_EMAIL (BLS requires a contact "
               "address in the User-Agent)", file=sys.stderr)
         return 1
