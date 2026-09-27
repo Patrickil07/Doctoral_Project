@@ -44,10 +44,10 @@ usajobs-status:
 	$(PY) src/06_usajobs_historic.py --status
 
 exposure: $(EXPOSURE)
-$(EXPOSURE): src/00b_convert_exposure.py data/raw/exposure_soc2010.csv data/raw/soc_2010_to_2018_crosswalk.xlsx
+$(EXPOSURE): src/00b_convert_exposure.py data/raw/lm_aioe.xlsx data/raw/soc_2010_to_2018_crosswalk.xlsx
 	$(PY) src/00b_convert_exposure.py --out $@
 
-$(PUBLIC) data/raw/exposure_soc2010.csv data/raw/soc_2010_to_2018_crosswalk.xlsx:
+$(PUBLIC) data/raw/lm_aioe.xlsx data/raw/soc_2010_to_2018_crosswalk.xlsx:
 	@echo "missing $@: run 'make fetch', or see data/README.md" >&2; exit 1
 
 $(TASKS): src/02_build_task_composition.py mapping/onet_activity_map.csv $(ONET_DIR)/_manifest.json

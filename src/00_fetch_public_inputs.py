@@ -9,8 +9,8 @@
                                          BLS SOC 2010 -> 2018 crosswalk (used by step
                                          00b for exposure measures coded on SOC 2010)
 
-NOT fetched here: the GenAI exposure measure (data/raw/exposure_soc2010.csv or
-a SOC 2018 file). It is a methodological choice; place it by hand, record the
+NOT fetched here: the GenAI exposure measure (data/raw/lm_aioe.xlsx or a SOC
+2018 file). It is a methodological choice; place it by hand, record the
 source in data/README.md, and convert it with step 00b.
 
 OEWS year: the default is 2021, the first May estimates published entirely on
@@ -147,7 +147,7 @@ def main() -> int:
                   f"--{name}-url <link>", file=sys.stderr)
 
     mpath.write_text(json.dumps(manifest, indent=2))
-    if not any(raw.glob("exposure_*.csv")):
+    if not (raw / "lm_aioe.xlsx").exists() and not any(raw.glob("exposure_*")):
         print("[fetch] reminder: the exposure measure must be placed by hand "
               "(see data/README.md), then converted with step 00b")
     return 1 if failed else 0
