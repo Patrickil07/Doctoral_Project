@@ -110,4 +110,4 @@ dissertation be added to the IPUMS bibliography (http://bibliography.ipums.org/)
 Codebook facts the pipeline relies on: EARNWEEK2 "not in universe" is
 999999.99 and EARNWEEK 9999.99 (step 05 drops both); EARNWEEK2 is top-coded
 at 2884.61 until March 2023 and at a monthly value from April 2024 (step 05
-flags each month's maximum); EARNWT is the earner-study weight.
+flags each month's maximum); EARNWT is the earner-study weight. Unrounded EARNWEEK exists only to March 2023, so step 05 uses EARNWEEK2, which covers all 71 months. ASECFLAG is 2 (March basic) in March samples; step 05 drops any ASECFLAG = 1 record as a safeguard.

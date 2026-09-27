@@ -99,6 +99,11 @@ def main() -> int:
     df = restrict_period(df, args.start)
     log.append((f"{args.start} onwards (2018 Census occupation codes)", len(df)))
 
+    # --- basic monthly records only (ASECFLAG 1 = ASEC; 2 = March basic) ------
+    if "ASECFLAG" in df.columns:
+        df = df[df["ASECFLAG"] != 1]
+        log.append(("basic monthly records (no ASEC)", len(df)))
+
     # --- ORG earner universe -------------------------------------------------
     df = df[df["EARNWT"] > 0]
     log.append(("in ORG earner universe", len(df)))
