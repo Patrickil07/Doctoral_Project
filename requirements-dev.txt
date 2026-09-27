@@ -1,0 +1,4 @@
+-r requirements.txt
+nbstripout>=0.7         # strips notebook outputs on commit
+jupytext>=1.16          # keeps .py twins of notebooks for readable diffs
+pytest>=8
