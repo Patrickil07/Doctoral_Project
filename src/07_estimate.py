@@ -127,7 +127,7 @@ def main() -> int:
     ap.add_argument("--sample", default="data/out/analysis_sample.parquet")
     ap.add_argument("--out", default="data/out/results")
     ap.add_argument("--drop-pandemic", action="store_true")
-    args, _unknown = ap.parse_known_args([])  # notebook: defaults only
+    args = ap.parse_args()
 
     sample = pathlib.Path(args.sample)
     if not sample.exists():
@@ -179,5 +179,5 @@ def main() -> int:
     return 0
 
 
-# ---- run in the notebook ----
-rc = main()
+if __name__ == "__main__":
+    raise SystemExit(main())

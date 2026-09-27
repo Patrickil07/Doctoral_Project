@@ -80,11 +80,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    original_argv = sys.argv
-    sys.argv = ['colab_kernel_launcher.py', '--release', '30.3']
-    try:
-        exit_code = main()
-        if exit_code != 0:
-            print(f"[onet] Finished with exit code {exit_code}")
-    finally:
-        sys.argv = original_argv
+    raise SystemExit(main())

@@ -9,7 +9,7 @@ Implements proposal Sections 6.4 / 3.4:
   - ln T scale control
 
 Fails loudly if any element name in the mapping file is absent from the
-downed O*NET release, so a silent partial mapping can never occur.
+downloaded O*NET release, so a silent partial mapping can never occur.
 
 Usage:
     python src/02_build_task_composition.py
@@ -79,64 +79,6 @@ def ilr_balances(C: np.ndarray) -> np.ndarray:
     return np.column_stack([z1, z2, z3])
 
 
-def ensure_default_mapping(map_path: pathlib.Path):
-    """Generates a comprehensive default mapping matching the exact O*NET GWA element names."""
-    if map_path.exists():
-        map_path.unlink()
-
-    print(f"[task] Generating corrected O*NET 41 Work Activities task map at {map_path}...")
-    map_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Exact GWA names mapped in O*NET 30.3
-    data = [
-        ("Getting Information", "c1_nonroutine_analytic"),
-        ("Identifying Objects, Actions, and Events", "c1_nonroutine_analytic"),
-        ("Estimating the Quantifiable Characteristics of Products, Events, or Information", "c1_nonroutine_analytic"),
-        ("Evaluating Information to Determine Compliance with Standards", "c1_nonroutine_analytic"),
-        ("Analyzing Data or Information", "c1_nonroutine_analytic"),
-        ("Making Decisions and Solving Problems", "c1_nonroutine_analytic"),
-        ("Thinking Creatively", "c1_nonroutine_analytic"),
-        ("Updating and Using Relevant Knowledge", "c1_nonroutine_analytic"),
-        ("Developing Objectives and Strategies", "c1_nonroutine_analytic"),
-        ("Scheduling Work and Activities", "c1_nonroutine_analytic"),
-        ("Organizing, Planning, and Prioritizing Work", "c1_nonroutine_analytic"),
-
-        ("Interpreting the Meaning of Information for Others", "c2_nonroutine_interpersonal"),
-        ("Establishing and Maintaining Interpersonal Relationships", "c2_nonroutine_interpersonal"),
-        ("Assisting and Caring for Others", "c2_nonroutine_interpersonal"),
-        ("Selling or Influencing Others", "c2_nonroutine_interpersonal"),
-        ("Resolving Conflicts and Negotiating with Others", "c2_nonroutine_interpersonal"),
-        ("Performing for or Working Directly with the Public", "c2_nonroutine_interpersonal"),
-        ("Coordinating the Work and Activities of Others", "c2_nonroutine_interpersonal"),
-        ("Developing and Building Teams", "c2_nonroutine_interpersonal"),
-        ("Training and Teaching Others", "c2_nonroutine_interpersonal"),
-        ("Guiding, Directing, and Motivating Subordinates", "c2_nonroutine_interpersonal"),
-        ("Coaching and Developing Others", "c2_nonroutine_interpersonal"),
-        ("Providing Consultation and Advice to Others", "c2_nonroutine_interpersonal"),
-
-        ("Processing Information", "c3_routine_cognitive"),
-        ("Documenting/Recording Information", "c3_routine_cognitive"),
-        ("Coding/Encoding Information", "c3_routine_cognitive"),
-        ("Communicating with Supervisors, Peers, or Subordinates", "c3_routine_cognitive"),
-        ("Communicating with Persons Outside Your Organization", "c3_routine_cognitive"),
-        ("Performing Administrative Activities", "c3_routine_cognitive"),
-        ("Monitoring Processes, Materials, or Surroundings", "c3_routine_cognitive"),
-
-        ("Inspecting Equipment, Structures, or Materials", "c4_residual"),
-        ("Operating Vehicles, Mechanized Devices, or Equipment", "c4_residual"),
-        ("Drafting, Laying Out, and Specifying Technical Devices, Parts, and Equipment", "c4_residual"),
-        ("Repairing and Maintaining Mechanical Equipment", "c4_residual"),
-        ("Repairing and Maintaining Electronic Equipment", "c4_residual"),
-        ("Working with Computers", "c3_routine_cognitive"),
-        ("Handling and Moving Objects", "c4_residual"),
-        ("Controlling Machines and Processes", "c4_residual"),
-        ("Performing General Physical Activities", "c4_residual")
-    ]
-    df_map = pd.DataFrame(data, columns=["element_name", "task_part"]).drop_duplicates(subset=["element_name"])
-    df_map.to_csv(map_path, index=False)
-    print(f"[task] written standard fallback map to {map_path}")
-
-
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--onet", required=True)
@@ -161,10 +103,18 @@ def main() -> int:
     wa["Data Value"] = pd.to_numeric(wa["Data Value"], errors="coerce")
     wa = wa[wa["Scale ID"].str.strip() == args.scale].dropna(subset=["Data Value"])
 
-    # Automatically construct the mapping if not provided
-    ensure_default_mapping(pathlib.Path(args.map))
-
-    mp = pd.read_csv(args.map)
+    # The mapping is a methodological choice and lives under version control;
+    # it is never generated or overwritten here.
+    map_path = pathlib.Path(args.map)
+    if not map_path.exists():
+        print(f"[task] mapping file {map_path} not found", file=sys.stderr)
+        return 1
+    mp = pd.read_csv(map_path)
+    dup = mp["element_name"][mp["element_name"].duplicated()]
+    if not dup.empty:
+        print(f"[task] MAPPING ERROR — elements assigned more than once: {sorted(dup)}",
+              file=sys.stderr)
+        return 2
     mp["key"] = norm(mp["element_name"])
     wa["key"] = norm(wa["Element Name"])
 
@@ -224,17 +174,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    # Simulate command-line arguments for argparse
-    original_argv = sys.argv
-    sys.argv = [
-        'colab_kernel_launcher.py',
-        '--onet', 'data/raw/onet_30_3',
-        '--map', 'mapping/onet_activity_map.csv',
-        '--out', 'data/interim/task_composition.csv'
-    ]
-    try:
-        exit_code = main()
-        if exit_code != 0:
-            print(f"[task] Finished with exit code {exit_code}")
-    finally:
-        sys.argv = original_argv
+    raise SystemExit(main())

@@ -151,23 +151,4 @@ def _educ_years(code: float) -> float:
 
 
 if __name__ == "__main__":
-    original_argv = sys.argv
-    sys.argv = [
-        'colab_kernel_launcher.py',
-        '--ipums', 'data/raw/ipums',
-        '--occ', 'data/interim/occ_measures.csv',
-        '--cpi', 'data/raw/cpi_u.csv',
-        '--out', 'data/out/analysis_sample.parquet'
-    ]
-    try:
-        ipums_dir = pathlib.Path("data/raw/ipums")
-        existing_xml = list(ipums_dir.glob("*.xml")) if ipums_dir.exists() else []
-        if not existing_xml:
-            print("[sample] ⚠️ Notice: No IPUMS extract (.xml) found in data/raw/ipums/ yet.")
-            print("         Complete Step 04 (or place extract files in data/raw/ipums/) to build the estimation sample.")
-        else:
-            exit_code = main()
-            if exit_code != 0:
-                print(f"[sample] Finished with exit code {exit_code}")
-    finally:
-        sys.argv = original_argv
+    raise SystemExit(main())
