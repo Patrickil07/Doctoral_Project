@@ -18,7 +18,8 @@ FIXES in this version
 Inputs (all free, all public):
   data/raw/oews_national.xlsx          OEWS national, May 2021 (first year fully on SOC 2018)
   data/raw/census_soc_crosswalk.xlsx   Census 2018 occupation code list w/ crosswalk
-  data/interim/exposure_soc2018.csv    columns: soc2018,exposure (step 00b)
+  data/interim/exposure_soc2018.csv    columns: soc2018,exposure (step 00b;
+                                       primary = Eloundou et al. human-rated beta)
 """
 import argparse
 import pathlib

@@ -13,16 +13,17 @@ RESULTS = data/out/results/rq1_task_composition.csv
 PUBLIC  = data/raw/oews_national.xlsx data/raw/census_soc_crosswalk.xlsx data/raw/cpi_u.csv
 EXPOSURE = data/interim/exposure_soc2018.csv
 
-.PHONY: help all fetch exposure onet ipums usajobs usajobs-status estimate robustness test clean-interim
+.PHONY: help all fetch exposure robustness-exposure onet ipums usajobs usajobs-status estimate robustness test clean-interim
 
 help:
 	@echo "make fetch          00  OEWS, Census + SOC crosswalks, CPI-U (needs BLS_CONTACT_EMAIL)"
-	@echo "make exposure       00b exposure measure -> SOC 2018"
+	@echo "make exposure       00b Eloundou et al. human-rated beta -> SOC 2018 (primary)"
 	@echo "make onet           01  O*NET $(ONET_RELEASE)"
 	@echo "make ipums          04  IPUMS CPS extract (needs IPUMS_API_KEY)"
 	@echo "make usajobs        06  USAJOBS historic announcements + panel"
 	@echo "make estimate       02, 03, 05, 07 as needed"
 	@echo "make robustness     07  with the pandemic window dropped"
+	@echo "make robustness-exposure  03-07 with GPT-4-rated beta and with LM-AIOE"
 	@echo "make test               unit and smoke tests"
 
 all: estimate
@@ -44,10 +45,10 @@ usajobs-status:
 	$(PY) src/06_usajobs_historic.py --status
 
 exposure: $(EXPOSURE)
-$(EXPOSURE): src/00b_convert_exposure.py data/raw/lm_aioe.xlsx data/raw/soc_2010_to_2018_crosswalk.xlsx
+$(EXPOSURE): src/00b_convert_exposure.py data/raw/eloundou_occ_level.csv
 	$(PY) src/00b_convert_exposure.py --out $@
 
-$(PUBLIC) data/raw/lm_aioe.xlsx data/raw/soc_2010_to_2018_crosswalk.xlsx:
+$(PUBLIC) data/raw/eloundou_occ_level.csv data/raw/lm_aioe.xlsx data/raw/soc_2010_to_2018_crosswalk.xlsx:
 	@echo "missing $@: run 'make fetch', or see data/README.md" >&2; exit 1
 
 $(TASKS): src/02_build_task_composition.py mapping/onet_activity_map.csv $(ONET_DIR)/_manifest.json
@@ -66,6 +67,16 @@ estimate: $(RESULTS)
 
 robustness: $(SAMPLE)
 	$(PY) src/07_estimate.py --sample $(SAMPLE) --drop-pandemic --out data/out/results_drop_pandemic
+
+# Alternative exposure measures, run through the same 03 -> 05 -> 07 chain.
+robustness-exposure: $(TASKS) data/raw/eloundou_occ_level.csv data/raw/lm_aioe.xlsx data/raw/soc_2010_to_2018_crosswalk.xlsx
+	$(PY) src/00b_convert_exposure.py --column dv_rating_beta --out data/interim/exposure_gpt4beta_soc2018.csv
+	$(PY) src/00b_convert_exposure.py --exposure data/raw/lm_aioe.xlsx --column "Language Modeling AIOE" --source-soc 2010 --out data/interim/exposure_lmaioe_soc2018.csv
+	for m in gpt4beta lmaioe; do \
+	  $(PY) src/03_crosswalk.py --exposure data/interim/exposure_$${m}_soc2018.csv --out data/interim/occ_measures_$$m.csv && \
+	  $(PY) src/05_build_sample.py --occ data/interim/occ_measures_$$m.csv --out data/out/analysis_sample_$$m.parquet && \
+	  $(PY) src/07_estimate.py --sample data/out/analysis_sample_$$m.parquet --out data/out/results_exposure_$$m || exit 1; \
+	done
 
 test:
 	$(PY) -m pytest -q
