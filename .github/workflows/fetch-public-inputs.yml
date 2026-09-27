@@ -12,7 +12,7 @@ on:
         default: "cpi soc"
   push:
     branches: [claude/research-pipeline-github-c2r7vh]
-    paths: [.github/workflows/fetch-public-inputs.yml]
+    paths: [.github/workflows/fetch-public-inputs.yml, src/00_fetch_public_inputs.py]
 
 permissions:
   contents: read
@@ -35,7 +35,7 @@ jobs:
           cd data/raw
           sha256sum -- *.csv *.xlsx
           cat _public_inputs_manifest.json
-          [ -f cpi_u.csv ] && { head -3 cpi_u.csv; tail -2 cpi_u.csv; wc -l cpi_u.csv; } || true
+          [ -f cpi_u.csv ] && { head -3 cpi_u.csv; tail -14 cpi_u.csv; wc -l cpi_u.csv; } || true
       - uses: actions/upload-artifact@v4
         with:
           name: public_inputs

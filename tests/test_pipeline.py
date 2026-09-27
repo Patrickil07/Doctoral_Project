@@ -206,6 +206,20 @@ def test_step00b_default_run_writes_soc2018_file(tmp_path):
     assert set(df["soc2018"]) == {"15-1252", "15-1253"}
 
 
+def test_cpi_parse_keeps_unpublished_month_blank():
+    fetch = load("00_fetch_public_inputs")
+    rows = ["series_id        \tyear\tperiod\tvalue\tfootnote_codes",
+            "CUUR0000SA0      \t2025\tM09\t 324.800\t",
+            "CUUR0000SA0      \t2025\tM10\t -\t",
+            "CUUR0000SA0      \t2025\tM11\t 325.000\t",
+            "CUUR0000SA0      \t2025\tM13\t 323.000\t",
+            "CUUR0000AA0      \t2025\tM09\t 999.000\t"]
+    out = fetch.parse_cpi("\n".join(rows).encode())
+    assert list(out["month"]) == [9, 10, 11]
+    assert out["cpi"].isna().tolist() == [False, True, False]
+    assert out["cpi"].iloc[0] == pytest.approx(324.8)
+
+
 # --- step 04 -------------------------------------------------------------------
 def test_month_samples():
     s = ipums.month_samples("2019-01", "2025-12")
