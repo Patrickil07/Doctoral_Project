@@ -130,6 +130,19 @@ def expand_wildcards(xw: pd.DataFrame, known_socs: pd.Series) -> pd.DataFrame:
     return out
 
 
+def soc_major_by_occ(df: pd.DataFrame) -> pd.DataFrame:
+    """SOC 2018 major group (first two digits) of each CPS occupation code.
+
+    Where a Census code spans SOC codes in more than one major group, the group
+    with the most OEWS employment is used. Replaces IPUMS OCCSOC, which the CPS
+    collection does not offer.
+    """
+    d = df.assign(soc_major=df["soc2018"].astype(str).str.slice(0, 2))
+    emp = d.groupby(["cps_occ", "soc_major"])["emp"].sum().reset_index()
+    emp = emp.sort_values(["cps_occ", "emp", "soc_major"], ascending=[True, False, True])
+    return emp.drop_duplicates("cps_occ")[["cps_occ", "soc_major"]]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tasks", default="data/interim/task_composition.csv")
@@ -187,6 +200,8 @@ def main() -> int:
         return pd.Series(vals)
 
     occ = df.groupby("cps_occ").apply(wavg, include_groups=False).reset_index()
+
+    occ = occ.merge(soc_major_by_occ(df), on="cps_occ", how="left")
 
     # re-close composition after weighted averaging, then recompute ILR
     C = occ[PARTS].to_numpy()

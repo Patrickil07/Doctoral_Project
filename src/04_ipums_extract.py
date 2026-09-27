@@ -19,15 +19,22 @@ Usage:
 import argparse
 import os
 import pathlib
+import re
 import sys
 
 VARS = [
     # Only variables that 05_build_sample.py or 07_estimate.py use. IPUMS adds
     # its own preselected identifiers and weights (SERIAL, PERNUM, WTFINL, ...).
+    # The SOC major group comes from the Census crosswalk (step 03): IPUMS CPS
+    # has no OCCSOC variable.
     "YEAR", "MONTH", "EARNWT",                    # time; ORG earnings weight
     "STATEFIP", "AGE", "SEX", "EDUC",             # controls, age bands, state FE
-    "EMPSTAT", "CLASSWKR", "IND", "OCC", "OCCSOC",  # sample rules, industry FE, merge key
-    "EARNWEEK", "EARNWEEK2", "QEARNWEEK",         # earnings; allocation flag
+    "EMPSTAT", "CLASSWKR", "IND", "OCC",          # sample rules, industry FE, merge key
+    "EARNWEEK", "EARNWEEK2",                      # weekly earnings
+]
+# Requested if IPUMS accepts the name; dropped with a warning if it does not.
+OPTIONAL_VARS = [
+    "QEARNWEE",                                   # EARNWEEK allocation (imputation) flag
 ]
 
 
@@ -89,6 +96,27 @@ def pick_monthly_samples(wanted: list[str], info: dict[str, str]) -> tuple[list[
     return picked, missing
 
 
+def submit_dropping_optional(client, make, required: list[str], optional: list[str]):
+    """Submit an extract; if IPUMS rejects only optional variable names, drop them and retry.
+
+    A rejected request creates no extract. Any rejected required variable is an error.
+    """
+    from ipumspy.api.exceptions import BadIpumsApiRequest
+    variables = list(required) + list(optional)
+    while True:
+        extract = make(variables)
+        try:
+            client.submit_extract(extract)
+            return extract, variables
+        except BadIpumsApiRequest as exc:
+            bad = re.findall(r"Invalid variable name: (\w+)", str(exc))
+            if not bad or any(v not in optional for v in bad):
+                raise
+            for v in bad:
+                print(f"[ipums] WARNING: IPUMS does not recognise {v}; requesting without it")
+            variables = [v for v in variables if v not in bad]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", default="2020-01",
@@ -138,15 +166,12 @@ def main() -> int:
     print(f"[ipums] requesting {len(samples)} monthly samples "
           f"({samples[0]} to {samples[-1]}), {len(VARS)} variables")
 
-    extract = MicrodataExtract(
-        collection="cps",
-        description=args.description,
-        samples=samples,
-        variables=VARS,
-    )
+    def make(variables):
+        return MicrodataExtract(collection="cps", description=args.description,
+                                samples=samples, variables=variables)
 
-    client.submit_extract(extract)
-    print(f"[ipums] submitted extract #{extract.extract_id}; waiting…")
+    extract, used = submit_dropping_optional(client, make, VARS, OPTIONAL_VARS)
+    print(f"[ipums] submitted extract #{extract.extract_id} with variables {used}; waiting…")
     client.wait_for_extract(extract)
     client.download_extract(extract, download_dir=outdir)
 

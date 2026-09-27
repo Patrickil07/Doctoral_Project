@@ -258,6 +258,42 @@ def test_available_samples_reads_every_page():
     assert set(got) == set(names)
 
 
+def test_rejected_optional_variable_is_dropped_and_resubmitted():
+    from ipumspy.api.exceptions import BadIpumsApiRequest
+
+    class FakeClient:
+        def __init__(self):
+            self.calls = []
+
+        def submit_extract(self, extract):
+            self.calls.append(list(extract))
+            if "QEARNWEE" in extract:
+                raise BadIpumsApiRequest("Invalid variable name: QEARNWEE")
+
+    c = FakeClient()
+    _, used = ipums.submit_dropping_optional(c, list, ["YEAR", "OCC"], ["QEARNWEE"])
+    assert used == ["YEAR", "OCC"] and len(c.calls) == 2
+
+
+def test_rejected_required_variable_still_fails():
+    from ipumspy.api.exceptions import BadIpumsApiRequest
+
+    class FakeClient:
+        def submit_extract(self, extract):
+            raise BadIpumsApiRequest("Invalid variable name: OCC")
+
+    with pytest.raises(BadIpumsApiRequest):
+        ipums.submit_dropping_optional(FakeClient(), list, ["YEAR", "OCC"], ["QEARNWEE"])
+
+
+def test_soc_major_from_crosswalk_uses_largest_employment_group():
+    df = pd.DataFrame({"cps_occ": [1021, 1021, 4700, 4700],
+                       "soc2018": ["15-1252", "15-1253", "41-2031", "43-4051"],
+                       "emp": [100.0, 50.0, 10.0, 90.0]})
+    got = xwalk.soc_major_by_occ(df).set_index("cps_occ")["soc_major"].to_dict()
+    assert got == {1021: "15", 4700: "43"}
+
+
 # --- step 05 -------------------------------------------------------------------
 def test_sample_starts_january_2020():
     d = pd.DataFrame({"YEAR": [2019, 2019, 2020, 2020, 2025],
@@ -267,6 +303,11 @@ def test_sample_starts_january_2020():
     assert len(sample.restrict_period(d, "2020-06")) == 2
     with pytest.raises(ValueError):
         sample.restrict_period(d, "2019-01")
+
+
+def test_knowledge_filter_uses_soc_major():
+    occ = pd.DataFrame({"cps_occ": [1021, 4700, 9130], "soc_major": ["15", "43", "53"]})
+    assert sample.knowledge_occ_codes(occ) == {1021, 4700}
 
 
 # --- step 07 smoke test: the specifications estimate without error ----------

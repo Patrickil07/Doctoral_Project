@@ -3,7 +3,8 @@
 
 Implements every cleaning rule the proposal commits to in Sections 6.2 and 6.6:
   * ORG earnings universe only (wage/salary workers, not self-employed)
-  * knowledge-intensive SOC major groups 13,15,17,19,23,27,43
+  * knowledge-intensive SOC major groups 13,15,17,19,23,27,43 (major group of
+    each CPS occupation code from the Census crosswalk, step 03)
   * early-career (22-30) vs experienced (35-55); 31-34 excluded from the
     primary contrast, restorable via --include-midband
   * harmonised ROUNDED weekly earnings (EARNWEEK2) so pre/post-2023 are
@@ -44,6 +45,14 @@ def restrict_period(df: pd.DataFrame, start: str = SAMPLE_START) -> pd.DataFrame
                          "use 2010 Census occupation codes and cannot be merged")
     y, m = (int(x) for x in start.split("-"))
     return df[(df["YEAR"] > y) | ((df["YEAR"] == y) & (df["MONTH"] >= m))]
+
+
+def knowledge_occ_codes(occ: pd.DataFrame) -> set:
+    """CPS occupation codes whose SOC major group is knowledge-intensive."""
+    if "soc_major" not in occ.columns:
+        raise ValueError("occupation measures lack soc_major; re-run step 03")
+    major = occ["soc_major"].astype(str).str.zfill(2)
+    return set(occ.loc[major.isin(KNOWLEDGE_MAJOR), "cps_occ"])
 
 
 def load_ipums(ddir: pathlib.Path) -> pd.DataFrame:
@@ -90,10 +99,9 @@ def main() -> int:
     df = df[df["EMPSTAT"].isin([10, 12])]            # employed at work / has job
     log.append(("employed", len(df)))
 
-    # --- occupation restriction ---------------------------------------------
-    df["OCCSOC"] = df["OCCSOC"].astype(str).str.strip()
-    df["soc_major"] = df["OCCSOC"].str.slice(0, 2)
-    df = df[df["soc_major"].isin(KNOWLEDGE_MAJOR)]
+    # --- occupation restriction (SOC major group from the step 03 crosswalk) --
+    occ = pd.read_csv(args.occ, dtype={"soc_major": str})
+    df = df[df["OCC"].isin(knowledge_occ_codes(occ))]
     log.append(("knowledge-intensive SOC groups", len(df)))
 
     # --- seniority bands -----------------------------------------------------
@@ -114,11 +122,13 @@ def main() -> int:
     log.append(("valid weekly earnings", len(df)))
 
     if not args.keep_allocated:
-        if "QEARNWEEK" in df.columns:
-            df = df[df["QEARNWEEK"] == 0]
+        flag = next((c for c in ("QEARNWEE", "QEARNWEEK") if c in df.columns), None)
+        if flag:
+            df = df[df[flag] == 0]
             log.append(("non-allocated earnings (Hirsch-Schumacher)", len(df)))
         else:
-            print("[sample] WARNING: QEARNWEEK missing; cannot exclude imputed earnings")
+            print("[sample] WARNING: no EARNWEEK allocation flag in the extract; "
+                  "imputed earnings are NOT excluded")
 
     # dynamic top-code flag: mark the monthly maximum, which is the top-coded value
     df["is_topcoded"] = (df.groupby(["YEAR", "MONTH"])["earnweek"]
@@ -141,7 +151,6 @@ def main() -> int:
     df["pandemic_window"] = df["date"].between("2020-04-01", "2021-06-30").astype(int)
 
     # --- merge occupation-level task + exposure measures ---------------------
-    occ = pd.read_csv(args.occ)
     df = df.merge(occ, left_on="OCC", right_on="cps_occ", how="left")
     miss = df["z3"].isna().mean()
     print(f"[sample] {miss:.1%} of person-records lack occupation measures after merge")
