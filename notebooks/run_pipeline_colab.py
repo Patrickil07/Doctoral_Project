@@ -83,11 +83,11 @@ for name in ("IPUMS_API_KEY", "BLS_CONTACT_EMAIL"):
 # ## Data acquisition
 
 # %%
-# 00  OEWS national (May 2021), Census + BLS SOC crosswalks, CPI-U
+# 00  OEWS national (May 2021), Census + BLS SOC crosswalks, CPI-U, Eloundou et al.
 # !python src/00_fetch_public_inputs.py
 
 # %%
-# 00b exposure measure (SOC 2010) -> SOC 2018
+# 00b primary exposure: Eloundou et al. (2024) human-rated beta -> 6-digit SOC 2018
 # !python src/00b_convert_exposure.py
 
 # %%
@@ -128,3 +128,7 @@ for name in ("IPUMS_API_KEY", "BLS_CONTACT_EMAIL"):
 # %%
 # 07  robustness: drop the pandemic window
 # !python src/07_estimate.py --drop-pandemic --out data/out/results_drop_pandemic
+
+# %%
+# 00b-07 robustness: alternative exposure measures (GPT-4-rated beta, LM-AIOE)
+# !make robustness-exposure

@@ -27,7 +27,7 @@ Google Drive layout (`My Drive/doctoral project/`):
 .
 ├── src/                         the pipeline, one script per step, run in order
 │   ├── 00_fetch_public_inputs.py    OEWS, Census + BLS SOC crosswalks, CPI-U
-│   ├── 00b_convert_exposure.py      exposure measure → SOC 2018
+│   ├── 00b_convert_exposure.py      exposure measure (Eloundou et al. 2024) → 6-digit SOC 2018
 │   ├── 01_download_onet.py          pinned O*NET release
 │   ├── 02_build_task_composition.py four-part task composition + ILR balances
 │   ├── 03_crosswalk.py              SOC → CPS occupation codes, OEWS weights, exposure
@@ -69,9 +69,10 @@ table at the top.
 export BLS_CONTACT_EMAIL=you@example.com
 export IPUMS_API_KEY=...        # never commit; on Colab use the Secrets panel
 make fetch onet ipums usajobs   # data acquisition
-make exposure                   # exposure measure → SOC 2018
+make exposure                   # Eloundou human-rated beta → SOC 2018
 make estimate                   # 02 → 03 → 05 → 07, rebuilding only what changed
 make robustness                 # pandemic window dropped
+make robustness-exposure        # GPT-4-rated beta, LM-AIOE
 ```
 
 Outputs land in `data/out/results/`. To cite results in a chapter, follow

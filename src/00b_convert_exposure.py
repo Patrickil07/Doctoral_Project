@@ -1,37 +1,39 @@
 """
-00b_convert_exposure.py — put an occupation exposure measure on SOC 2018 codes.
+00b_convert_exposure.py — build the occupation exposure measure on SOC 2018 codes.
 
-Steps 03 onwards key everything on SOC 2018. Several AI-exposure measures are
-published on SOC 2010 codes, including Felten, Raj & Seamans' AIOE and
-Language-Modeling AIOE. Merging those directly on SOC 2018 silently drops every
-occupation whose code changed in 2018 — most of the computer occupations
-(15-11xx -> 15-12xx) among them.
+Steps 03 onwards key everything on 6-digit SOC 2018. This step produces that
+file from the chosen exposure source.
 
-This script maps a SOC 2010 exposure file to SOC 2018 with the BLS
-2010-to-2018 SOC crosswalk:
-  * one 2010 code -> several 2018 codes (a split): each 2018 code inherits
-    the 2010 score;
-  * several 2010 codes -> one 2018 code (a merge): the 2018 code gets the
-    unweighted mean of the 2010 scores.
-Both rules are choices to report in the methodology; the log lists every
-2018 code built from more than one 2010 code so they can be checked.
+Primary measure (default): Eloundou, Manning, Mishkin & Rock (2024), "GPTs are
+GPTs", occupation-level file occ_level.csv (fetched and checksum-verified by
+step 00). It is on O*NET-SOC 2019 codes (SOC 2018 based, e.g. 15-1211.01).
+Columns: human_rating_* (annotators) and dv_rating_* (GPT-4), each as
+alpha = E1, beta = E1 + 0.5*E2, gamma = E1 + E2. The default is
+human_rating_beta; --column switches rater or definition for robustness.
 
-A measure already on SOC 2018 (e.g. Eloundou et al. 2024, O*NET-SOC 2019)
-needs no conversion: pass --already-2018 to validate and copy it.
+O*NET-SOC detail codes are collapsed to 6-digit SOC by the unweighted mean,
+the same rule step 03 applies to the task measures.
 
-Inputs
-  data/raw/lm_aioe.xlsx                       Felten, Raj & Seamans LM-AIOE (SOC 2010),
-                                              or any .csv/.xlsx with a SOC column and
-                                              a score column (--column)
-  data/raw/soc_2010_to_2018_crosswalk.xlsx    BLS (fetched by step 00)
+Measures on SOC 2010 codes (Felten, Raj & Seamans' AIOE and LM-AIOE) need
+--source-soc 2010. They are mapped with the BLS 2010-to-2018 SOC crosswalk:
+  * one 2010 code -> several 2018 codes (a split): each inherits the score;
+  * several 2010 codes -> one 2018 code (a merge): unweighted mean.
+The log lists every 2018 code built from more than one source code.
+
+Scale: Eloundou scores are shares in [0, 1]; AIOE scores are standardised.
+Coefficients on exposure are therefore not comparable across measures
+without rescaling.
+
 Output
-  data/interim/exposure_soc2018.csv           columns: soc2018,exposure,n_soc2010
+  data/interim/exposure_soc2018.csv    columns: soc2018,exposure,n_source
 
 Usage:
-    python src/00b_convert_exposure.py
-    python src/00b_convert_exposure.py --exposure data/raw/AIOE_DataAppendix.xlsx \
-        --sheet "Appendix A" --column AIOE --out data/interim/exposure_aioe_soc2018.csv
-    python src/00b_convert_exposure.py --exposure data/raw/eloundou_soc2018.csv --already-2018
+    python src/00b_convert_exposure.py                               # primary
+    python src/00b_convert_exposure.py --column dv_rating_beta \
+        --out data/interim/exposure_gpt4beta_soc2018.csv              # GPT-4 rater
+    python src/00b_convert_exposure.py --exposure data/raw/lm_aioe.xlsx \
+        --column "Language Modeling AIOE" --source-soc 2010 \
+        --out data/interim/exposure_lmaioe_soc2018.csv                # LM-AIOE
 """
 import argparse
 import pathlib
@@ -40,14 +42,15 @@ import sys
 import pandas as pd
 
 SOC = r"^\d{2}-\d{4}$"
+ONET_SOC = r"^\d{2}-\d{4}\.\d{2}$"
 
 
-def load_exposure(path: pathlib.Path, sheet: str | None = None,
-                  column: str | None = None) -> pd.DataFrame:
-    """Read an exposure file (.csv or .xlsx) into columns soc, exposure.
+def load_exposure(path: pathlib.Path, column: str, sheet: str | None = None
+                  ) -> pd.DataFrame:
+    """Read an exposure file (.csv or .xlsx) into columns soc, exposure, n_source.
 
-    The SOC column is the first whose name contains 'soc'. The score column is
-    --column if given, else 'exposure', else the last numeric column.
+    The code column is the first whose name contains 'soc'. O*NET-SOC detail
+    codes (15-1211.01) are averaged up to 6-digit SOC (15-1211).
     """
     if path.suffix.lower() in (".xlsx", ".xls"):
         df = pd.read_excel(path, sheet_name=sheet or 0)
@@ -55,25 +58,26 @@ def load_exposure(path: pathlib.Path, sheet: str | None = None,
         df = pd.read_csv(path)
     df.columns = [str(c).strip() for c in df.columns]
     code = next((c for c in df.columns if "soc" in c.lower()), None)
-    if column:
-        value = column
-    elif "exposure" in [c.lower() for c in df.columns]:
-        value = next(c for c in df.columns if c.lower() == "exposure")
-    else:
-        numeric = [c for c in df.columns
-                   if pd.to_numeric(df[c], errors="coerce").notna().mean() > 0.9]
-        value = numeric[-1] if numeric else None
-    if code is None or value not in df.columns:
-        raise ValueError(f"{path}: need a SOC code column and a score column "
-                         f"(pass --column); found {list(df.columns)}")
-    print(f"[exposure] {path.name}: codes from '{code}', scores from '{value}'")
+    if code is None or column not in df.columns:
+        raise ValueError(f"{path}: need a SOC code column and the score column "
+                         f"'{column}' (see --column); found {list(df.columns)}")
+    print(f"[exposure] {path.name}: codes from '{code}', scores from '{column}'")
     out = pd.DataFrame({"soc": df[code].astype(str).str.strip(),
-                        "exposure": pd.to_numeric(df[value], errors="coerce")})
+                        "exposure": pd.to_numeric(df[column], errors="coerce")})
+
+    detail = out["soc"].str.match(ONET_SOC, na=False)
+    if detail.any():
+        out.loc[detail, "soc"] = out.loc[detail, "soc"].str.slice(0, 7)
+        print(f"[exposure] {int(detail.sum())} O*NET-SOC codes collapsed to 6-digit "
+              f"SOC by unweighted mean")
+
     bad = ~out["soc"].str.match(SOC, na=False) | out["exposure"].isna()
     if bad.any():
-        print(f"[exposure] dropping {int(bad.sum())} rows without a detailed SOC code "
+        print(f"[exposure] dropping {int(bad.sum())} rows without a SOC code "
               f"or numeric exposure")
-    return out[~bad].drop_duplicates("soc")
+    return (out[~bad].groupby("soc")
+                     .agg(exposure=("exposure", "mean"), n_source=("exposure", "size"))
+                     .reset_index())
 
 
 def load_soc_crosswalk(path: pathlib.Path) -> pd.DataFrame:
@@ -107,29 +111,36 @@ def load_soc_crosswalk(path: pathlib.Path) -> pd.DataFrame:
 
 
 def convert(exp: pd.DataFrame, xw: pd.DataFrame) -> pd.DataFrame:
+    """Map a SOC 2010 exposure table to SOC 2018 (split = copy, merge = mean)."""
     m = xw.merge(exp.rename(columns={"soc": "soc2010"}), on="soc2010", how="inner")
     out = (m.groupby("soc2018")
-             .agg(exposure=("exposure", "mean"), n_soc2010=("soc2010", "nunique"))
+             .agg(exposure=("exposure", "mean"), n_source=("soc2010", "nunique"))
              .reset_index())
     return out
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--exposure", default="data/raw/lm_aioe.xlsx")
+    ap.add_argument("--exposure", default="data/raw/eloundou_occ_level.csv")
+    ap.add_argument("--column", default="human_rating_beta",
+                    help="score column (default: Eloundou human-rated beta)")
     ap.add_argument("--sheet", help="Excel sheet (default: first)")
-    ap.add_argument("--column", help="score column (default: 'exposure' or last numeric)")
+    ap.add_argument("--source-soc", choices=["2018", "2010"], default="2018",
+                    help="SOC vintage of the source codes; 2010 triggers conversion")
     ap.add_argument("--crosswalk", default="data/raw/soc_2010_to_2018_crosswalk.xlsx")
     ap.add_argument("--out", default="data/interim/exposure_soc2018.csv")
-    ap.add_argument("--already-2018", action="store_true",
-                    help="input is already on SOC 2018: validate and copy")
     args = ap.parse_args()
 
-    exp = load_exposure(pathlib.Path(args.exposure), args.sheet, args.column)
-    print(f"[exposure] {len(exp)} occupations read from {args.exposure}")
+    src = pathlib.Path(args.exposure)
+    if not src.exists():
+        print(f"[exposure] missing {src}; run step 00 (it downloads the Eloundou "
+              "et al. file) or place your source there", file=sys.stderr)
+        return 1
+    exp = load_exposure(src, args.column, args.sheet)
+    print(f"[exposure] {len(exp)} 6-digit SOC {args.source_soc} occupations read")
 
-    if args.already_2018:
-        out = exp.rename(columns={"soc": "soc2018"}).assign(n_soc2010=pd.NA)
+    if args.source_soc == "2018":
+        out = exp.rename(columns={"soc": "soc2018"})
     else:
         xw_path = pathlib.Path(args.crosswalk)
         if not xw_path.exists():
@@ -137,18 +148,21 @@ def main() -> int:
                   "SOC 2010-to-2018 crosswalk)", file=sys.stderr)
             return 1
         xw = load_soc_crosswalk(xw_path)
-        out = convert(exp, xw)
+        out = convert(exp[["soc", "exposure"]], xw)
         unmatched = sorted(set(exp["soc"]) - set(xw["soc2010"]))
         if unmatched:
             print(f"[exposure] {len(unmatched)} SOC 2010 codes are not in the crosswalk "
                   f"and are dropped: {unmatched[:10]}")
-        merged = out[out["n_soc2010"] > 1]
+        merged = out[out["n_source"] > 1]
         print(f"[exposure] {len(out)} SOC 2018 codes; {len(merged)} are the mean of "
               f"several 2010 codes (listed below — check and report)")
         for r in merged.itertuples(index=False):
-            src = sorted(xw.loc[xw["soc2018"] == r.soc2018, "soc2010"])
-            print(f"        {r.soc2018} <- {', '.join(src)}")
+            codes = sorted(xw.loc[xw["soc2018"] == r.soc2018, "soc2010"])
+            print(f"        {r.soc2018} <- {', '.join(codes)}")
 
+    print(f"[exposure] {args.column}: mean {out['exposure'].mean():.3f}, "
+          f"sd {out['exposure'].std():.3f}, range [{out['exposure'].min():.3f}, "
+          f"{out['exposure'].max():.3f}]")
     pathlib.Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(args.out, index=False)
     print(f"[exposure] written {args.out}")
