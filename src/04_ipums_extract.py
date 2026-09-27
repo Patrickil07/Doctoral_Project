@@ -59,7 +59,9 @@ def available_samples(client, collection: str = "cps", page_size: int = 500) -> 
         data = r.get("data") or []
         names.update(item["name"] for item in data)
         total = r.get("totalCount")
-        if not data or (total is not None and len(names) >= total) or len(data) < page_size:
+        # the server may cap pageSize, so prefer totalCount to decide when to stop
+        done = len(names) >= total if total is not None else len(data) < page_size
+        if not data or done:
             return names
         page += 1
 
