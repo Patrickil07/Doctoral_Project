@@ -44,6 +44,12 @@ def month_samples(start: str, end: str) -> list[str]:
     return out
 
 
+def split_available(wanted: list[str], available) -> tuple[list[str], list[str]]:
+    """Split requested sample ids into those IPUMS offers and those it does not."""
+    have = set(available)
+    return [s for s in wanted if s in have], [s for s in wanted if s not in have]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", default="2020-01",
@@ -76,12 +82,17 @@ def main() -> int:
     outdir = pathlib.Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    samples = month_samples(args.start, args.end)
-    print(f"[ipums] requesting {len(samples)} monthly samples, {len(VARS)} variables")
-    print("[ipums] NOTE: October 2025 was not collected (federal shutdown) and will "
-          "be absent; this is expected — see proposal Section 6.6.")
-
     client = IpumsApiClient(key)
+    wanted = month_samples(args.start, args.end)
+    samples, missing = split_available(wanted, client.get_all_sample_info("cps"))
+    for s in missing:
+        print(f"[ipums] WARNING: IPUMS has no sample {s}; that month is not requested")
+    if not samples:
+        print("[ipums] none of the requested months are available", file=sys.stderr)
+        return 1
+    print(f"[ipums] requesting {len(samples)} monthly samples "
+          f"({samples[0]} to {samples[-1]}), {len(VARS)} variables")
+
     extract = MicrodataExtract(
         collection="cps",
         description=args.description,

@@ -226,6 +226,12 @@ def test_month_samples():
     assert len(s) == 84 and s[0] == "cps2019_01b" and s[-1] == "cps2025_12b"
 
 
+def test_unavailable_samples_are_left_out():
+    wanted = ipums.month_samples("2025-09", "2025-11")
+    ok, missing = ipums.split_available(wanted, {"cps2025_09b": "", "cps2025_11b": ""})
+    assert ok == ["cps2025_09b", "cps2025_11b"] and missing == ["cps2025_10b"]
+
+
 # --- step 05 -------------------------------------------------------------------
 def test_sample_starts_january_2020():
     d = pd.DataFrame({"YEAR": [2019, 2019, 2020, 2020, 2025],
