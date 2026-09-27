@@ -18,9 +18,7 @@ FIXES in this version
    file and the resume point is checkpointed, so an interrupted walk continues
    where it stopped instead of restarting. The file is renamed to its final
    name only when the walk completes.
-3. Colab/Jupyter safe: uses parse_known_args(), so the kernel's `-f` argument
-   no longer crashes argparse.
-4. A completion report at the end shows exactly which of the expected files
+3. A completion report at the end shows exactly which of the expected files
    exist, are partial, or are missing.
 
 Usage:
@@ -313,7 +311,7 @@ def main(argv=None) -> int:
     ap.add_argument("--skip-text", action="store_true")
     ap.add_argument("--build-only", action="store_true")
     ap.add_argument("--status", action="store_true")
-    args, _unknown = ap.parse_known_args(argv)   # tolerate Jupyter's -f argument
+    args = ap.parse_args(argv)
 
     try:
         os.getcwd()

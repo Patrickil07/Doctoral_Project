@@ -127,7 +127,7 @@ def main() -> int:
     ap.add_argument("--out", default="data/interim/occ_measures.csv")
     ap.add_argument("--occ-col", default=OCC_COL)
     ap.add_argument("--soc-col", default=SOC_COL)
-    args, _unknown = ap.parse_known_args()      # tolerate Jupyter's -f argument
+    args = ap.parse_args()
 
     for p in (args.tasks, args.oews, args.crosswalk, args.exposure):
         if not pathlib.Path(p).exists():
@@ -197,11 +197,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    original_argv = sys.argv
-    sys.argv = ["colab_kernel_launcher.py"]      # defaults above; no -f to trip argparse
-    try:
-        exit_code = main()
-        if exit_code != 0:
-            print(f"[xwalk] Finished with exit code {exit_code}")
-    finally:
-        sys.argv = original_argv
+    raise SystemExit(main())

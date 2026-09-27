@@ -1,0 +1,39 @@
+element_name,task_part
+Analyzing Data or Information,c1_nonroutine_analytic
+Developing Objectives and Strategies,c1_nonroutine_analytic
+"Estimating the Quantifiable Characteristics of Products, Events, or Information",c1_nonroutine_analytic
+Evaluating Information to Determine Compliance with Standards,c1_nonroutine_analytic
+Getting Information,c1_nonroutine_analytic
+"Identifying Objects, Actions, and Events",c1_nonroutine_analytic
+Making Decisions and Solving Problems,c1_nonroutine_analytic
+"Organizing, Planning, and Prioritizing Work",c1_nonroutine_analytic
+Scheduling Work and Activities,c1_nonroutine_analytic
+Thinking Creatively,c1_nonroutine_analytic
+Updating and Using Relevant Knowledge,c1_nonroutine_analytic
+Assisting and Caring for Others,c2_nonroutine_interpersonal
+Coaching and Developing Others,c2_nonroutine_interpersonal
+Coordinating the Work and Activities of Others,c2_nonroutine_interpersonal
+Developing and Building Teams,c2_nonroutine_interpersonal
+Establishing and Maintaining Interpersonal Relationships,c2_nonroutine_interpersonal
+"Guiding, Directing, and Motivating Subordinates",c2_nonroutine_interpersonal
+Interpreting the Meaning of Information for Others,c2_nonroutine_interpersonal
+Performing for or Working Directly with the Public,c2_nonroutine_interpersonal
+Providing Consultation and Advice to Others,c2_nonroutine_interpersonal
+Resolving Conflicts and Negotiating with Others,c2_nonroutine_interpersonal
+Selling or Influencing Others,c2_nonroutine_interpersonal
+Training and Teaching Others,c2_nonroutine_interpersonal
+Communicating with People Outside the Organization,c3_routine_cognitive
+"Communicating with Supervisors, Peers, or Subordinates",c3_routine_cognitive
+Documenting/Recording Information,c3_routine_cognitive
+"Monitoring Processes, Materials, or Surroundings",c3_routine_cognitive
+Performing Administrative Activities,c3_routine_cognitive
+Processing Information,c3_routine_cognitive
+Working with Computers,c3_routine_cognitive
+Controlling Machines and Processes,c4_residual
+"Drafting, Laying Out, and Specifying Technical Devices, Parts, and Equipment",c4_residual
+Handling and Moving Objects,c4_residual
+"Inspecting Equipment, Structures, or Materials",c4_residual
+"Operating Vehicles, Mechanized Devices, or Equipment",c4_residual
+Performing General Physical Activities,c4_residual
+Repairing and Maintaining Electronic Equipment,c4_residual
+Repairing and Maintaining Mechanical Equipment,c4_residual

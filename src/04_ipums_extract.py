@@ -14,6 +14,7 @@ until it is ready, then downloads the data and DDI codebook.
 Usage:
     export IPUMS_API_KEY=xxxxxxxx
     python src/04_ipums_extract.py --start 2019-01 --end 2025-12
+    python src/04_ipums_extract.py --force        # re-request even if present
 """
 import argparse
 import os
@@ -53,7 +54,15 @@ def main() -> int:
     ap.add_argument("--end", default="2025-12")
     ap.add_argument("--outdir", default="data/raw/ipums")
     ap.add_argument("--description", default="Pipeline Paradox CPS ORG 2019-2025")
+    ap.add_argument("--force", action="store_true",
+                    help="submit a new extract even if one is already downloaded")
     args = ap.parse_args()
+
+    existing = sorted(pathlib.Path(args.outdir).glob("*.xml"))
+    if existing and not args.force:
+        print(f"[ipums] extract codebook already present: {existing[0]}\n"
+              "        skipping; pass --force to request a new extract")
+        return 0
 
     key = os.environ.get("IPUMS_API_KEY")
     if not key:
@@ -96,21 +105,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    original_argv = sys.argv
-    sys.argv = ['colab_kernel_launcher.py', '--start', '2019-01', '--end', '2025-12', '--outdir', 'data/raw/ipums']
-    try:
-        ipums_dir = pathlib.Path("data/raw/ipums")
-        existing_xml = list(ipums_dir.glob("*.xml")) if ipums_dir.exists() else []
-        if existing_xml:
-            print(f"[ipums] Extract codebook already present in {ipums_dir}: {existing_xml[0].name}")
-            print("[ipums] Skipping download. (Delete file if you wish to re-request extract).")
-        elif not os.environ.get("IPUMS_API_KEY"):
-            print("[ipums] ⚠️ IPUMS_API_KEY environment variable not set.")
-            print("        To request new extract: os.environ['IPUMS_API_KEY'] = 'YOUR_KEY'")
-            print("        Or place existing extract (.xml + .dat.gz) directly in data/raw/ipums/.")
-        else:
-            exit_code = main()
-            if exit_code != 0:
-                print(f"[ipums] Finished with exit code {exit_code}")
-    finally:
-        sys.argv = original_argv
+    raise SystemExit(main())
