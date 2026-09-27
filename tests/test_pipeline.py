@@ -44,6 +44,7 @@ def test_mapping_is_complete_and_unique():
     assert not mp["element_name"].duplicated().any()
     assert set(mp["task_part"]) <= set(task.PARTS)
     assert set(mp["task_part"]) == set(task.PARTS), "every part needs at least one GWA"
+    assert len(mp) == 41, "O*NET 30.3 has 41 Generalized Work Activities; map all of them"
 
 
 # --- compositional maths -----------------------------------------------------

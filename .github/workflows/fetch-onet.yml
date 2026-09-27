@@ -1,6 +1,7 @@
 # Downloads the pinned O*NET database release with src/01_download_onet.py,
 # prints its SHA-256, and publishes the manifest plus the Work Activities file
-# (the only table step 02 reads) as a run artifact (kept 30 days).
+# (the only table step 02 reads) as a run artifact (kept 30 days). It also runs
+# step 02 on that release and fails if the mapping leaves any activity unmapped.
 name: fetch-onet
 
 on:
@@ -11,7 +12,8 @@ on:
         default: "30.3"
   push:
     branches: [claude/research-pipeline-github-c2r7vh]
-    paths: [.github/workflows/fetch-onet.yml, src/01_download_onet.py]
+    paths: [.github/workflows/fetch-onet.yml, src/01_download_onet.py,
+            src/02_build_task_composition.py, mapping/onet_activity_map.csv]
 
 permissions:
   contents: read
@@ -24,7 +26,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - run: pip install -q -r requirements.txt
       - run: python src/01_download_onet.py --release ${{ inputs.release || '30.3' }} --outdir data/raw/onet
+      - name: Step 02 against this release (mapping must be exhaustive)
+        run: |
+          python src/02_build_task_composition.py --onet data/raw/onet --out task_composition.csv | tee step02.log
+          if grep -q "unmapped" step02.log; then echo "::error::O*NET activities left unmapped"; exit 1; fi
       - run: |
           cat data/raw/onet/_manifest.json
           find data/raw/onet -name "Work Activities*" -exec sh -c 'sha256sum "$1"; wc -l "$1"; head -3 "$1"' _ {} \;
