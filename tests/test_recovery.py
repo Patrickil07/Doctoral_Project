@@ -22,7 +22,7 @@ G_TASK, G_SHARE, PSI = 0.25, -0.20, 0.10
 def make_synthetic(path: pathlib.Path, seed: int = 11) -> None:
     rng = np.random.default_rng(seed)
     n_occ = 40
-    quarters = pd.period_range("2019Q1", "2025Q4", freq="Q").astype(str).tolist()
+    quarters = pd.period_range("2020Q1", "2025Q4", freq="Q").astype(str).tolist()  # sample period
     occ = pd.DataFrame({
         "OCC": np.arange(1000, 1000 + n_occ),
         "exposure": rng.uniform(0, 1, n_occ),
