@@ -44,7 +44,7 @@ jobs:
             echo "::error::Repository secret IPUMS_API_KEY is not set"; exit 1; fi
           mkdir -p logs
 
-      - name: 00 public inputs (OEWS, Census + SOC crosswalks, CPI-U, Eloundou)
+      - name: 00 public inputs (OEWS, Census + SOC crosswalks, CPI-U, Eloundou, LM-AIOE)
         run: python src/00_fetch_public_inputs.py | tee logs/00_fetch.log
       - name: 00b exposure (Eloundou human-rated beta -> SOC 2018)
         run: python src/00b_convert_exposure.py | tee logs/00b_exposure.log
@@ -71,12 +71,8 @@ jobs:
           python src/05_build_sample.py --occ data/interim/occ_measures_gpt4beta.csv --out data/out/analysis_sample_gpt4beta.parquet
           python src/07_estimate.py --sample data/out/analysis_sample_gpt4beta.parquet --out data/out/results_exposure_gpt4beta
         shell: bash -eo pipefail {0}
-      - name: Robustness - LM-AIOE (only if data/raw/lm_aioe.xlsx is available)
+      - name: Robustness - LM-AIOE
         run: |
-          if [ ! -f data/raw/lm_aioe.xlsx ]; then
-            echo "LM-AIOE file is placed by hand and not downloadable by script; skipped."
-            echo "Run 'make robustness-exposure' where the file is available (Drive 07_Data/raw)."
-            exit 0; fi
           python src/00b_convert_exposure.py --exposure data/raw/lm_aioe.xlsx --column "Language Modeling AIOE" --source-soc 2010 --out data/interim/exposure_lmaioe_soc2018.csv
           python src/03_crosswalk.py --exposure data/interim/exposure_lmaioe_soc2018.csv --out data/interim/occ_measures_lmaioe.csv
           python src/05_build_sample.py --occ data/interim/occ_measures_lmaioe.csv --out data/out/analysis_sample_lmaioe.parquet

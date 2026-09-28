@@ -77,9 +77,7 @@ The whole pipeline runs on GitHub's machines with one click; no Colab needed.
    and `logs/provenance.txt` (commit, run URL, extract number, input checksums).
 
 Every input is downloaded fresh; IPUMS microdata stays on the runner and is
-deleted afterwards. Only aggregate outputs are kept. The LM-AIOE robustness run
-is skipped there (its file is placed by hand); run `make robustness-exposure`
-where the file is available.
+deleted afterwards. Only aggregate outputs are kept.
 
 ## Running the pipeline locally or on Colab
 

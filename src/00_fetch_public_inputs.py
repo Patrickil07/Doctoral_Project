@@ -13,8 +13,9 @@
                                          repository at a pinned commit; the SHA-256 is
                                          checked so the input cannot change silently
 
-NOT fetched here: the LM-AIOE robustness measure (data/raw/lm_aioe.xlsx),
-which is placed by hand; see data/README.md.
+    data/raw/lm_aioe.xlsx                Felten, Raj & Seamans (2023) Language-Modeling
+                                         AIOE (robustness measure), from the authors'
+                                         repository at a pinned commit, SHA-256 checked
 
 OEWS year: the default is 2021, the first May estimates published entirely on
 SOC 2018. May 2019 and 2020 use hybrid codes (e.g. 15-1256 in place of 15-1252
@@ -53,6 +54,10 @@ ELOUNDOU_COMMIT = "0471612fef3cc22b74fb884d27bff9dbd3770582"
 ELOUNDOU_URL = ("https://raw.githubusercontent.com/openai/GPTs-are-GPTs/"
                 f"{ELOUNDOU_COMMIT}/data/occ_level.csv")
 ELOUNDOU_SHA256 = "40c74f53de40aec91c0017d80690cbba915f83a8bb414bcf2f884692f1749acb"
+LMAIOE_COMMIT = "adca5fc2cd0e9a659ff05278b7fa7a53f4f324c1"
+LMAIOE_URL = ("https://raw.githubusercontent.com/AIOE-Data/AIOE/"
+              f"{LMAIOE_COMMIT}/Language%20Modeling%20AIOE%20and%20AIIE.xlsx")
+LMAIOE_SHA256 = "ccdd1fb916dfa404914367eafde7c00b7148ea86f18fe616240bc85cf6131c8b"
 
 
 def get(url: str, email: str) -> bytes:
@@ -109,6 +114,18 @@ def fetch_eloundou(raw: pathlib.Path, email: str, url: str | None, manifest: dic
           "-> data/raw/eloundou_occ_level.csv (checksum verified)")
 
 
+def fetch_lmaioe(raw: pathlib.Path, email: str, url: str | None, manifest: dict):
+    url = url or LMAIOE_URL
+    blob = get(url, email)
+    sha = hashlib.sha256(blob).hexdigest()
+    if url == LMAIOE_URL and sha != LMAIOE_SHA256:
+        raise ValueError(f"checksum mismatch for the pinned LM-AIOE file: {sha}")
+    record(manifest, "lm_aioe", url, blob)
+    (raw / "lm_aioe.xlsx").write_bytes(blob)
+    print(f"[fetch] Felten et al. LM-AIOE @ {LMAIOE_COMMIT[:7]} "
+          "-> data/raw/lm_aioe.xlsx (checksum verified)")
+
+
 def parse_cpi(blob: bytes):
     """BLS cu.data.1.AllItems -> monthly CPI-U (year, month, cpi) from 2015.
 
@@ -147,7 +164,7 @@ def main() -> int:
                     help="pre-period OEWS year used for employment weights "
                          "(2021 = first year fully on SOC 2018)")
     ap.add_argument("--email", default=os.environ.get("BLS_CONTACT_EMAIL"))
-    ap.add_argument("--only", choices=["oews", "crosswalk", "cpi", "soc", "eloundou"],
+    ap.add_argument("--only", choices=["oews", "crosswalk", "cpi", "soc", "eloundou", "lmaioe"],
                     nargs="+")
     ap.add_argument("--oews-url", help="override if BLS moves the file")
     ap.add_argument("--crosswalk-url", help="override if Census moves the file")
@@ -155,11 +172,13 @@ def main() -> int:
     ap.add_argument("--soc-url", help="override if BLS moves the SOC crosswalk")
     ap.add_argument("--eloundou-url", help="override the pinned Eloundou file (no "
                     "checksum check)")
+    ap.add_argument("--lmaioe-url", help="override the pinned LM-AIOE file (no "
+                    "checksum check)")
     args = ap.parse_args()
 
     # Only the BLS and Census downloads need a contact address; the Eloundou
-    # file comes from GitHub and can be fetched without one.
-    if not args.email and set(args.only or ["oews"]) - {"eloundou"}:
+    # and LM-AIOE files come from GitHub and can be fetched without one.
+    if not args.email and set(args.only or ["oews"]) - {"eloundou", "lmaioe"}:
         print("[fetch] pass --email or set BLS_CONTACT_EMAIL (BLS requires a contact "
               "address in the User-Agent)", file=sys.stderr)
         return 1
@@ -174,7 +193,8 @@ def main() -> int:
             "cpi": lambda: fetch_cpi(raw, args.email, args.cpi_url, manifest),
             "soc": lambda: fetch_soc_crosswalk(raw, args.email, args.soc_url, manifest),
             "eloundou": lambda: fetch_eloundou(raw, args.email, args.eloundou_url,
-                                               manifest)}
+                                               manifest),
+            "lmaioe": lambda: fetch_lmaioe(raw, args.email, args.lmaioe_url, manifest)}
     failed = []
     for name in args.only or jobs:
         try:
@@ -186,9 +206,6 @@ def main() -> int:
                   f"--{name}-url <link>", file=sys.stderr)
 
     mpath.write_text(json.dumps(manifest, indent=2))
-    if not (raw / "lm_aioe.xlsx").exists():
-        print("[fetch] note: data/raw/lm_aioe.xlsx (LM-AIOE robustness measure) is "
-              "placed by hand; see data/README.md")
     return 1 if failed else 0
 
 
