@@ -1,0 +1,7 @@
+[fetch] OEWS 2021 national -> data/raw/oews_national.xlsx (oesm21nat/national_M2021_dl.xlsx)
+[fetch] Census 2018 crosswalk -> data/raw/census_soc_crosswalk.xlsx
+[fetch] CPI-U CUUR0000SA0 2015-2026 -> data/raw/cpi_u.csv (140 months)
+[fetch] WARNING: CPI-U not published for 2025-10; left blank in cpi_u.csv
+[fetch] BLS SOC 2010->2018 crosswalk -> data/raw/soc_2010_to_2018_crosswalk.xlsx
+[fetch] Eloundou et al. occ_level.csv @ 0471612 -> data/raw/eloundou_occ_level.csv (checksum verified)
+[fetch] Felten et al. LM-AIOE @ adca5fc -> data/raw/lm_aioe.xlsx (checksum verified)

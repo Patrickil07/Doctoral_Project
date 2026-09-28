@@ -1,0 +1,14 @@
+[xwalk] sheet '2018 Census Occ Code List', header row 4: '2018 Census Code' -> '2018 SOC Code' (568 pairs, 38 wildcard SOC codes)
+[xwalk] 7 wildcard codes matched no task-data SOC: ['25-100X', '29-900X', '39-100X', '53-100X', '55-101X', '55-201X', '55-301X']
+[xwalk] 568 Census rows -> 926 Census x detailed-SOC pairs after wildcard expansion
+[xwalk] pairs lacking task data 3.0% | exposure 1.9% | OEWS employment 3.0%
+[xwalk] 533 CPS occupation codes written to data/interim/occ_measures.csv
+            z3  exposure
+count  533.000   533.000
+mean     0.317     0.293
+std      0.059     0.208
+min      0.133     0.000
+25%      0.284     0.106
+50%      0.318     0.281
+75%      0.349     0.463
+max      0.582     0.844
