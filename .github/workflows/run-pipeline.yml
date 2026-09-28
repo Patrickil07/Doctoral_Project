@@ -1,0 +1,107 @@
+# Runs the full CPS / O*NET pipeline (steps 00 -> 07 and robustness checks) on a
+# GitHub-hosted machine. Every input is downloaded fresh; IPUMS microdata never
+# leaves the runner. Only aggregate outputs (result tables, sample-construction
+# log, step logs) are kept, as a run artifact tied to the commit that produced them.
+#
+# Needs the repository secret IPUMS_API_KEY (Settings -> Secrets and variables ->
+# Actions). Start it from the Actions tab: "run-pipeline" -> "Run workflow".
+name: run-pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      extract_id:
+        description: "IPUMS CPS extract number (re-submitted automatically if expired)"
+        default: "3"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run-pipeline
+  cancel-in-progress: false
+
+env:
+  BLS_CONTACT_EMAIL: godeleinpatrick@gmail.com
+  IPUMS_API_KEY: ${{ secrets.IPUMS_API_KEY }}
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -q -r requirements.txt
+      - name: Check secret
+        run: |
+          if [ -z "$IPUMS_API_KEY" ]; then
+            echo "::error::Repository secret IPUMS_API_KEY is not set"; exit 1; fi
+          mkdir -p logs
+
+      - name: 00 public inputs (OEWS, Census + SOC crosswalks, CPI-U, Eloundou)
+        run: python src/00_fetch_public_inputs.py | tee logs/00_fetch.log
+      - name: 00b exposure (Eloundou human-rated beta -> SOC 2018)
+        run: python src/00b_convert_exposure.py | tee logs/00b_exposure.log
+      - name: 01 O*NET 30.3
+        run: python src/01_download_onet.py --release 30.3 | tee logs/01_onet.log
+      - name: 04 IPUMS CPS extract
+        run: python src/04_ipums_extract.py --extract-id ${{ inputs.extract_id || '3' }} | tee logs/04_ipums.log
+
+      - name: 02 task composition
+        run: python src/02_build_task_composition.py --onet data/raw/onet_30_3 | tee logs/02_tasks.log
+      - name: 03 crosswalk to CPS occupations
+        run: python src/03_crosswalk.py | tee logs/03_crosswalk.log
+      - name: 05 estimation sample
+        run: python src/05_build_sample.py | tee logs/05_sample.log
+      - name: 07 RQ1-RQ4
+        run: python src/07_estimate.py | tee logs/07_estimate.log
+
+      - name: Robustness - drop pandemic window
+        run: python src/07_estimate.py --drop-pandemic --out data/out/results_drop_pandemic | tee logs/07_drop_pandemic.log
+      - name: Robustness - GPT-4-rated exposure
+        run: |
+          python src/00b_convert_exposure.py --column dv_rating_beta --out data/interim/exposure_gpt4beta_soc2018.csv
+          python src/03_crosswalk.py --exposure data/interim/exposure_gpt4beta_soc2018.csv --out data/interim/occ_measures_gpt4beta.csv
+          python src/05_build_sample.py --occ data/interim/occ_measures_gpt4beta.csv --out data/out/analysis_sample_gpt4beta.parquet
+          python src/07_estimate.py --sample data/out/analysis_sample_gpt4beta.parquet --out data/out/results_exposure_gpt4beta
+        shell: bash -eo pipefail {0}
+      - name: Robustness - LM-AIOE (only if data/raw/lm_aioe.xlsx is available)
+        run: |
+          if [ ! -f data/raw/lm_aioe.xlsx ]; then
+            echo "LM-AIOE file is placed by hand and not downloadable by script; skipped."
+            echo "Run 'make robustness-exposure' where the file is available (Drive 07_Data/raw)."
+            exit 0; fi
+          python src/00b_convert_exposure.py --exposure data/raw/lm_aioe.xlsx --column "Language Modeling AIOE" --source-soc 2010 --out data/interim/exposure_lmaioe_soc2018.csv
+          python src/03_crosswalk.py --exposure data/interim/exposure_lmaioe_soc2018.csv --out data/interim/occ_measures_lmaioe.csv
+          python src/05_build_sample.py --occ data/interim/occ_measures_lmaioe.csv --out data/out/analysis_sample_lmaioe.parquet
+          python src/07_estimate.py --sample data/out/analysis_sample_lmaioe.parquet --out data/out/results_exposure_lmaioe
+
+      - name: Record provenance
+        if: always()
+        run: |
+          {
+            echo "commit: ${GITHUB_SHA}"
+            echo "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "started_by: ${GITHUB_ACTOR}"
+            echo "date_utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            [ -f data/raw/ipums/_extract_used.json ] && cat data/raw/ipums/_extract_used.json
+            [ -f data/raw/_public_inputs_manifest.json ] && cat data/raw/_public_inputs_manifest.json
+            [ -f data/raw/onet_30_3/_manifest.json ] && cat data/raw/onet_30_3/_manifest.json
+          } > logs/provenance.txt || true
+
+      # Aggregate outputs only: no microdata (IPUMS terms), no analysis_sample parquet.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pipeline-results
+          path: |
+            data/out/results*/*.csv
+            data/interim/occ_measures*.csv
+            logs/
+          retention-days: 90

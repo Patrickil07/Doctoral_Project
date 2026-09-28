@@ -63,19 +63,48 @@ def knowledge_occ_codes(occ: pd.DataFrame) -> set:
     return set(occ.loc[major.isin(KNOWLEDGE_MAJOR), "cps_occ"])
 
 
-def load_ipums(ddir: pathlib.Path) -> pd.DataFrame:
+def prefilter(chunk: pd.DataFrame, start: str) -> tuple[pd.DataFrame, list]:
+    """Filters that can be applied to each chunk as it is read, with row counts.
+
+    Order: sample period -> basic monthly only (no ASEC) -> ORG earner universe.
+    Applying them per chunk keeps memory to the ~1/4 of records in the earner
+    study instead of the full ~9 million-record file.
+    """
+    counts = [len(chunk)]
+    chunk = restrict_period(chunk, start)
+    counts.append(len(chunk))
+    if "ASECFLAG" in chunk.columns:
+        chunk = chunk[chunk["ASECFLAG"] != 1]
+    counts.append(len(chunk))
+    chunk = chunk[chunk["EARNWT"] > 0]
+    counts.append(len(chunk))
+    return chunk, counts
+
+
+def load_ipums(ddir: pathlib.Path, start: str = SAMPLE_START,
+               chunksize: int = 500_000) -> tuple[pd.DataFrame, list]:
+    """Read the extract in chunks, applying `prefilter`; return data and summed counts."""
     try:
         from ipumspy import readers
     except ImportError:
         print("[sample] pip install ipumspy", file=sys.stderr)
         raise
-    ddis = list(ddir.glob("*.xml"))
+    ddis = sorted(ddir.glob("*.xml"))
     if not ddis:
         raise FileNotFoundError(f"no DDI codebook (.xml) in {ddir}; run step 04 first")
+    if len(ddis) > 1:
+        raise RuntimeError(f"more than one extract codebook in {ddir}: "
+                           f"{[p.name for p in ddis]}; keep only the extract to use")
     ddi = readers.read_ipums_ddi(ddis[0])
-    df = readers.read_microdata(ddi, ddir / ddi.file_description.filename)
-    df.columns = [c.upper() for c in df.columns]
-    return df
+    print(f"[sample] reading {ddi.file_description.filename} in chunks of {chunksize:,}")
+    parts, totals = [], [0, 0, 0, 0]
+    for chunk in readers.read_microdata_chunked(ddi, ddir / ddi.file_description.filename,
+                                                chunksize=chunksize):
+        chunk.columns = [c.upper() for c in chunk.columns]
+        chunk, counts = prefilter(chunk, start)
+        totals = [a + b for a, b in zip(totals, counts)]
+        parts.append(chunk)
+    return pd.concat(parts, ignore_index=True), totals
 
 
 def main() -> int:
@@ -91,22 +120,15 @@ def main() -> int:
                     help="first month YYYY-MM (not earlier than 2020-01)")
     args = ap.parse_args()
 
-    df = load_ipums(pathlib.Path(args.ipums))
-    n0 = len(df)
-    log = [("raw records", n0)]
+    if args.start < SAMPLE_START:
+        restrict_period(pd.DataFrame({"YEAR": [], "MONTH": []}), args.start)  # raises
+    df, (n_raw, n_period, n_basic, n_org) = load_ipums(pathlib.Path(args.ipums), args.start)
+    log = [("raw records", n_raw),
+           (f"{args.start} onwards (2018 Census occupation codes)", n_period),
+           ("basic monthly records (no ASEC)", n_basic),
+           ("in ORG earner universe", n_org)]
 
-    # --- sample period (2018 Census occupation codes only) -------------------
-    df = restrict_period(df, args.start)
-    log.append((f"{args.start} onwards (2018 Census occupation codes)", len(df)))
-
-    # --- basic monthly records only (ASECFLAG 1 = ASEC; 2 = March basic) ------
-    if "ASECFLAG" in df.columns:
-        df = df[df["ASECFLAG"] != 1]
-        log.append(("basic monthly records (no ASEC)", len(df)))
-
-    # --- ORG earner universe -------------------------------------------------
-    df = df[df["EARNWT"] > 0]
-    log.append(("in ORG earner universe", len(df)))
+    # --- wage/salary, employed -----------------------------------------------
     df = df[df["CLASSWKR"].between(20, 28)]          # wage/salary, excl. self-employed
     log.append(("wage/salary workers", len(df)))
     df = df[df["EMPSTAT"].isin([10, 12])]            # employed at work / has job
