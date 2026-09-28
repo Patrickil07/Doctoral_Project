@@ -22,7 +22,7 @@ data/
 | `raw/soc_2010_to_2018_crosswalk.xlsx` | BLS SOC 2010 → 2018 crosswalk | `make fetch` | URL, SHA-256 |
 | `raw/cpi_u.csv` | BLS CPI-U, all items, U.S. city average, NSA (`CUUR0000SA0`) → `year,month,cpi` | `make fetch` | series id, download date |
 | `raw/eloundou_occ_level.csv` | **Primary exposure measure.** Eloundou, Manning, Mishkin & Rock (2024), *GPTs are GPTs*, `data/occ_level.csv` from github.com/openai/GPTs-are-GPTs at commit `0471612`; 923 O\*NET-SOC 2019 occupations | `make fetch` (pinned commit, SHA-256 `40c74f53…` checked) | paper, commit, SHA-256 |
-| `raw/lm_aioe.xlsx` | Robustness measure: Felten, Raj & Seamans (2023), Language-Modeling AIOE, 774 occupations on **SOC 2010** codes | copy of `Language Modeling AIOE and AIIE.xlsx` (sheet *LM AIOE*); original in `07_Data/sources/` | paper, file version, download date |
+| `raw/lm_aioe.xlsx` | Robustness measure: Felten, Raj & Seamans (2023), Language-Modeling AIOE, 774 occupations on **SOC 2010** codes | `make fetch`: `Language Modeling AIOE and AIIE.xlsx` from github.com/AIOE-Data/AIOE at commit `adca5fc` (SHA-256 `ccdd1fb9…` checked; identical to the copy in Drive `07_Data/raw/`) | paper, commit, SHA-256 |
 | `interim/exposure_soc2018.csv` | primary measure: Eloundou **human-rated β** (E1 + 0.5·E2) on 6-digit SOC 2018 (O\*NET-SOC detail averaged) | `make exposure` / `src/00b_convert_exposure.py` | column used, aggregation rule |
 | `interim/exposure_{gpt4beta,lmaioe}_soc2018.csv` | robustness measures: Eloundou GPT-4-rated β; LM-AIOE mapped from SOC 2010 (split = copy, merge = mean) | `make robustness-exposure` | as above, plus the merged codes step 00b lists |
 | `raw/ipums/` | IPUMS CPS monthly samples 2020-01 to 2025-12, **71 months** (October 2025 is not offered by IPUMS); months that carried a supplement are IPUMS `…s` samples, the March ASEC is excluded (`.xml` DDI + `.dat.gz`, plus `_extract_request.json`) | `make ipums` / `src/04_ipums_extract.py` (needs `IPUMS_API_KEY`, CPS registration) | extract number + IPUMS CPS version from the DDI |
@@ -80,7 +80,6 @@ downloads exactly as obtained, for provenance.
 export BLS_CONTACT_EMAIL=you@example.com
 export IPUMS_API_KEY=...            # never commit this
 make fetch onet ipums               # acquisition
-# place data/raw/lm_aioe.xlsx (see table above)
 make exposure                       # step 00b (Eloundou human-rated beta)
 make estimate                       # steps 02 → 03 → 05 → 07
 make robustness
