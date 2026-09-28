@@ -307,6 +307,26 @@ def test_soc_major_from_crosswalk_uses_largest_employment_group():
     assert got == {1021: "15", 4700: "43"}
 
 
+
+def test_task_measures_do_not_depend_on_exposure_coverage():
+    # CPS 1021 spans two SOC codes; only one has an exposure score
+    base = pd.DataFrame({"cps_occ": [1021, 1021, 4700],
+                         "soc2018": ["15-1252", "15-1253", "41-2031"],
+                         "emp": [100.0, 300.0, 50.0], "ln_T": [3.0, 2.0, 1.0]})
+    for i, c in enumerate(xwalk.PARTS):
+        base[c] = [0.1 + 0.1 * i, 0.4 - 0.1 * i, 0.25]
+    full = xwalk.aggregate_to_cps(base.assign(exposure=[0.8, 0.2, 0.5]))
+    part = xwalk.aggregate_to_cps(base.assign(exposure=[0.8, np.nan, np.nan]))
+    cols = xwalk.PARTS + ["ln_T"]
+    pd.testing.assert_frame_equal(full[cols], part[cols])
+    # task shares use both SOC codes, weighted 100:300
+    assert full.loc[0, xwalk.PARTS[0]] == pytest.approx(0.25 * 0.1 + 0.75 * 0.4)
+    # exposure uses only the SOC codes that have it
+    assert full.loc[0, "exposure"] == pytest.approx(0.25 * 0.8 + 0.75 * 0.2)
+    assert part.loc[0, "exposure"] == pytest.approx(0.8)
+    assert np.isnan(part.loc[1, "exposure"])
+    assert part["n_soc_exposure"].tolist() == [1, 0]
+
 # --- step 05 -------------------------------------------------------------------
 def test_sample_starts_january_2020():
     d = pd.DataFrame({"YEAR": [2019, 2019, 2020, 2020, 2025],
