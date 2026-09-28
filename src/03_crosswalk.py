@@ -130,6 +130,34 @@ def expand_wildcards(xw: pd.DataFrame, known_socs: pd.Series) -> pd.DataFrame:
     return out
 
 
+def _wavg(values: np.ndarray, emp: np.ndarray) -> float:
+    """Employment-weighted mean; equal weights if employment sums to zero."""
+    w = emp / emp.sum() if emp.sum() > 0 else np.repeat(1 / len(emp), len(emp))
+    return float(np.dot(w, values))
+
+
+def aggregate_to_cps(df: pd.DataFrame) -> pd.DataFrame:
+    """Employment-weighted task and exposure measures per CPS occupation code.
+
+    Each measure is averaged over the SOC occupations that have it: task
+    shares over SOC codes with task data, exposure over SOC codes with an
+    exposure score. So the task measures do not depend on which exposure
+    file is used, and the exposure robustness runs vary exposure only.
+    """
+    def one(g: pd.DataFrame) -> pd.Series:
+        emp = g["emp"].to_numpy(dtype=float)
+        vals = {c: _wavg(g[c].to_numpy(dtype=float), emp) for c in PARTS + ["ln_T"]}
+        has = g["exposure"].notna().to_numpy()
+        vals["exposure"] = (_wavg(g["exposure"].to_numpy(dtype=float)[has], emp[has])
+                            if has.any() else np.nan)
+        vals["n_soc"] = len(g)
+        vals["n_soc_exposure"] = int(has.sum())
+        vals["emp_total"] = float(emp.sum())
+        return pd.Series(vals)
+
+    return df.groupby("cps_occ").apply(one, include_groups=False).reset_index()
+
+
 def soc_major_by_occ(df: pd.DataFrame) -> pd.DataFrame:
     """SOC 2018 major group (first two digits) of each CPS occupation code.
 
@@ -182,24 +210,18 @@ def main() -> int:
     no_emp = df["emp"].isna().mean()
     print(f"[xwalk] pairs lacking task data {no_task:.1%} | exposure {no_exp:.1%} | "
           f"OEWS employment {no_emp:.1%}")
-    df = df.dropna(subset=PARTS + ["exposure"])
+    df = df.dropna(subset=PARTS)
     if df.empty:
         print("[xwalk] nothing left after merging - check that SOC codes in the three "
               "inputs use the same format (e.g. 15-1252)", file=sys.stderr)
         return 1
     df["emp"] = df["emp"].fillna(df["emp"].median())
 
-    # employment-weighted aggregation to CPS occupation level
-    def wavg(g: pd.DataFrame) -> pd.Series:
-        w = g["emp"].to_numpy(dtype=float)
-        w = w / w.sum() if w.sum() > 0 else np.repeat(1 / len(g), len(g))
-        vals = {c: float(np.dot(w, g[c].to_numpy(dtype=float)))
-                for c in PARTS + ["ln_T", "exposure"]}
-        vals["n_soc"] = len(g)
-        vals["emp_total"] = float(g["emp"].sum())
-        return pd.Series(vals)
-
-    occ = df.groupby("cps_occ").apply(wavg, include_groups=False).reset_index()
+    occ = aggregate_to_cps(df)
+    no_occ_exp = occ["exposure"].isna().sum()
+    if no_occ_exp:
+        print(f"[xwalk] {no_occ_exp} CPS occupation codes have task data but no "
+              "exposure score (exposure left blank; step 05 drops them)")
 
     occ = occ.merge(soc_major_by_occ(df), on="cps_occ", how="left")
 

@@ -36,6 +36,11 @@ data/
   et al. (2024), is on O\*NET-SOC 2019 (SOC 2018 based) and needs no conversion;
   it covers 180 of the 189 CPS occupation codes in the knowledge-intensive
   groups, missing only 'All Other' residual codes that O\*NET also leaves unrated.
+- **Task and exposure coverage differ.** A CPS code can span several SOC codes,
+  and not every SOC code has an exposure score. Step 03 averages the task shares
+  over the SOC codes with task data and exposure over the SOC codes with an
+  exposure score, so z1–z3 are the same whichever exposure file is used and the
+  exposure robustness runs change exposure only.
 - **Exposure scales differ.** Eloundou scores are shares of tasks in [0, 1];
   AIOE scores are standardised. Coefficients on exposure are not comparable
   across the primary and LM-AIOE results without rescaling.
