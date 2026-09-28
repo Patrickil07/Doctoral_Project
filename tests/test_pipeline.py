@@ -318,6 +318,16 @@ def test_sample_starts_january_2020():
         sample.restrict_period(d, "2019-01")
 
 
+def test_prefilter_counts_each_step():
+    d = pd.DataFrame({"YEAR": [2019, 2020, 2020, 2021, 2022],
+                      "MONTH": [12, 3, 3, 6, 1],
+                      "ASECFLAG": [2, 1, 2, 2, 2],
+                      "EARNWT": [5.0, 5.0, 5.0, 0.0, 7.0]})
+    out, counts = sample.prefilter(d, sample.SAMPLE_START)
+    assert counts == [5, 4, 3, 2]
+    assert list(zip(out.YEAR, out.MONTH)) == [(2020, 3), (2022, 1)]
+
+
 def test_knowledge_filter_uses_soc_major():
     occ = pd.DataFrame({"cps_occ": [1021, 4700, 9130], "soc_major": ["15", "43", "53"]})
     assert sample.knowledge_occ_codes(occ) == {1021, 4700}

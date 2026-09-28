@@ -118,6 +118,26 @@ def submit_dropping_optional(client, make, required: list[str], optional: list[s
             variables = [v for v in variables if v not in bad]
 
 
+def fetch_existing(client, extract_id: int, outdir: pathlib.Path) -> int:
+    """Download extract `extract_id`; if IPUMS has expired its files, re-submit the
+    identical definition (same samples and variables) and download that."""
+    import json
+    from datetime import datetime, timezone
+    used, note = extract_id, "downloaded as is"
+    if client.extract_is_expired(extract_id, "cps"):
+        extract = client.get_extract_by_id(extract_id, "cps")
+        client.submit_extract(extract)
+        used, note = extract.extract_id, f"re-submitted from expired #{extract_id}"
+        print(f"[ipums] extract #{extract_id} has expired; re-submitted as #{used}, waiting…")
+    client.wait_for_extract(used, "cps")
+    client.download_extract(used, collection="cps", download_dir=outdir)
+    (outdir / "_extract_used.json").write_text(json.dumps({
+        "extract_id": used, "requested_id": extract_id, "note": note,
+        "downloaded_utc": datetime.now(timezone.utc).isoformat()}, indent=2))
+    print(f"[ipums] IPUMS CPS extract #{used} ({note}) -> {outdir}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", default="2020-01",
@@ -127,6 +147,9 @@ def main() -> int:
     ap.add_argument("--description", default="Pipeline Paradox CPS ORG 2020-2025")
     ap.add_argument("--max-missing", type=int, default=2,
                     help="stop if more requested months than this are unavailable")
+    ap.add_argument("--extract-id", type=int,
+                    help="download this existing extract (re-submitted if expired) "
+                         "instead of building a new request")
     ap.add_argument("--force", action="store_true",
                     help="submit a new extract even if one is already downloaded")
     args = ap.parse_args()
@@ -151,6 +174,9 @@ def main() -> int:
 
     outdir = pathlib.Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
+
+    if args.extract_id:
+        return fetch_existing(IpumsApiClient(key), args.extract_id, outdir)
 
     client = IpumsApiClient(key)
     wanted = month_samples(args.start, args.end)

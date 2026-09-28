@@ -64,7 +64,24 @@ make test
 On Colab, open `notebooks/run_pipeline_colab.ipynb` and follow the secrets
 table at the top.
 
-## Running the pipeline
+## Running the analysis (automated, recommended)
+
+The whole pipeline runs on GitHub's machines with one click; no Colab needed.
+
+1. Once: add the repository secret `IPUMS_API_KEY` (Settings → Secrets and
+   variables → Actions → New repository secret).
+2. Actions tab → **run-pipeline** → **Run workflow** (extract number defaults to 3;
+   an expired extract is re-submitted automatically with the same definition).
+3. When it finishes, download **pipeline-results** from the run page: result
+   tables, occupation measures, the Table 4.1 sample log (`logs/05_sample.log`)
+   and `logs/provenance.txt` (commit, run URL, extract number, input checksums).
+
+Every input is downloaded fresh; IPUMS microdata stays on the runner and is
+deleted afterwards. Only aggregate outputs are kept. The LM-AIOE robustness run
+is skipped there (its file is placed by hand); run `make robustness-exposure`
+where the file is available.
+
+## Running the pipeline locally or on Colab
 
 ```bash
 export BLS_CONTACT_EMAIL=you@example.com
