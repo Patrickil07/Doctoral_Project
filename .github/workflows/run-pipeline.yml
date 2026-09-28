@@ -1,7 +1,8 @@
 # Runs the full CPS / O*NET pipeline (steps 00 -> 07 and robustness checks) on a
 # GitHub-hosted machine. Every input is downloaded fresh; IPUMS microdata never
 # leaves the runner. Only aggregate outputs (result tables, sample-construction
-# log, step logs) are kept, as a run artifact tied to the commit that produced them.
+# log, step logs) are kept: as a run artifact (90 days) and, permanently, as a
+# folder runs/<date>_run<N>_<commit>/ on the `results` branch of this repository.
 #
 # Needs the repository secret IPUMS_API_KEY (Settings -> Secrets and variables ->
 # Actions). Start it from the Actions tab: "run-pipeline" -> "Run workflow".
@@ -15,7 +16,7 @@ on:
         default: "3"
 
 permissions:
-  contents: read
+  contents: write   # to save results on the `results` branch
 
 concurrency:
   group: run-pipeline
@@ -101,3 +102,27 @@ jobs:
             data/interim/occ_measures*.csv
             logs/
           retention-days: 90
+
+      # Permanent copy: artifacts expire, the `results` branch does not.
+      # Same aggregate files as the artifact; no microdata.
+      - name: Save results to the results branch
+        run: |
+          dest="runs/$(date -u +%Y-%m-%d)_run${GITHUB_RUN_NUMBER}_${GITHUB_SHA::7}"
+          out="$RUNNER_TEMP/results-branch"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch --depth=1 origin results 2>/dev/null; then
+            git worktree add --detach "$out" FETCH_HEAD
+          else
+            git worktree add --detach "$out"
+            git -C "$out" checkout -q --orphan new-results
+            git -C "$out" rm -rfq --ignore-unmatch .
+          fi
+          mkdir -p "$out/$dest"
+          cp --parents data/out/results*/*.csv data/interim/occ_measures*.csv "$out/$dest/"
+          cp -r logs "$out/$dest/"
+          cd "$out"
+          git add -A
+          git commit -q -m "Results of run ${GITHUB_RUN_NUMBER} (commit ${GITHUB_SHA::7})"
+          git push -q origin HEAD:refs/heads/results
+          echo "saved to branch results: $dest"

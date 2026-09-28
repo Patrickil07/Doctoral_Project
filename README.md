@@ -75,6 +75,10 @@ The whole pipeline runs on GitHub's machines with one click; no Colab needed.
 3. When it finishes, download **pipeline-results** from the run page: result
    tables, occupation measures, the Table 4.1 sample log (`logs/05_sample.log`)
    and `logs/provenance.txt` (commit, run URL, extract number, input checksums).
+4. The same files are saved permanently on the `results` branch, one folder
+   per run: `runs/<date>_run<N>_<commit>/`. The run artifact expires after 90
+   days; the branch copy does not. Each run's folder is also copied to Drive
+   `07_Data/results/`.
 
 Every input is downloaded fresh; IPUMS microdata stays on the runner and is
 deleted afterwards. Only aggregate outputs are kept.
