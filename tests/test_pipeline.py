@@ -319,13 +319,16 @@ def test_sample_starts_january_2020():
 
 
 def test_prefilter_counts_each_step():
-    d = pd.DataFrame({"YEAR": [2019, 2020, 2020, 2021, 2022],
-                      "MONTH": [12, 3, 3, 6, 1],
-                      "ASECFLAG": [2, 1, 2, 2, 2],
-                      "EARNWT": [5.0, 5.0, 5.0, 0.0, 7.0]})
+    # as ipumspy returns it: nullable integers, ASECFLAG missing outside March
+    d = pd.DataFrame({"YEAR": [2019, 2020, 2020, 2021, 2022, 2023],
+                      "MONTH": [12, 3, 3, 6, 1, 7],
+                      "ASECFLAG": pd.array([2, 1, 2, None, None, None], dtype="Int64"),
+                      "STATEFIP": pd.array([6, 6, 36, 36, 48, 48], dtype="Int64"),
+                      "EARNWT": [5.0, 5.0, 5.0, 0.0, 7.0, 3.0]})
     out, counts = sample.prefilter(d, sample.SAMPLE_START)
-    assert counts == [5, 4, 3, 2]
-    assert list(zip(out.YEAR, out.MONTH)) == [(2020, 3), (2022, 1)]
+    assert counts == [6, 5, 4, 3]            # non-March months (ASECFLAG missing) kept
+    assert list(zip(out.YEAR, out.MONTH)) == [(2020, 3), (2022, 1), (2023, 7)]
+    assert out["STATEFIP"].dtype == "int64" and out["ASECFLAG"].dtype == "float64"
 
 
 def test_knowledge_filter_uses_soc_major():

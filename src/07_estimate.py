@@ -188,6 +188,11 @@ def main() -> int:
               "      Nothing to estimate yet - this is expected, not a bug.")
         return 1
     df = pd.read_parquet(sample)
+    # nullable integer columns (from older samples) break the formula parser
+    nullable = [c for c in df.columns if pd.api.types.is_extension_array_dtype(df[c])
+                and pd.api.types.is_numeric_dtype(df[c])]
+    if nullable:
+        df[nullable] = df[nullable].astype("float64")
     if args.drop_pandemic:
         df = df[df["pandemic_window"] == 0]
         print(f"[est] pandemic window dropped, N={len(df):,}")

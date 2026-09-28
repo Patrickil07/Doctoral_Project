@@ -63,6 +63,23 @@ def knowledge_occ_codes(occ: pd.DataFrame) -> set:
     return set(occ.loc[major.isin(KNOWLEDGE_MAJOR), "cps_occ"])
 
 
+def plain_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert pandas nullable integer/boolean columns (as ipumspy returns them)
+    to numpy dtypes: int64 when complete, float64 (NaN) when values are missing.
+    Formula-based estimation (patsy) cannot read the nullable types."""
+    out = df.copy()
+    for c in out.columns:
+        dt = out[c].dtype
+        if isinstance(dt, (pd.Int8Dtype, pd.Int16Dtype, pd.Int32Dtype, pd.Int64Dtype,
+                           pd.UInt8Dtype, pd.UInt16Dtype, pd.UInt32Dtype, pd.UInt64Dtype,
+                           pd.BooleanDtype)):
+            out[c] = (out[c].astype("int64") if not out[c].isna().any()
+                      else out[c].astype("float64"))
+        elif isinstance(dt, pd.Float64Dtype) or isinstance(dt, pd.Float32Dtype):
+            out[c] = out[c].astype("float64")
+    return out
+
+
 def prefilter(chunk: pd.DataFrame, start: str) -> tuple[pd.DataFrame, list]:
     """Filters that can be applied to each chunk as it is read, with row counts.
 
@@ -70,11 +87,14 @@ def prefilter(chunk: pd.DataFrame, start: str) -> tuple[pd.DataFrame, list]:
     Applying them per chunk keeps memory to the ~1/4 of records in the earner
     study instead of the full ~9 million-record file.
     """
+    chunk = plain_dtypes(chunk)
     counts = [len(chunk)]
     chunk = restrict_period(chunk, start)
     counts.append(len(chunk))
     if "ASECFLAG" in chunk.columns:
-        chunk = chunk[chunk["ASECFLAG"] != 1]
+        # ASECFLAG is only set in March samples (1 = ASEC, 2 = March basic) and
+        # missing in every other month; missing must be KEPT, not dropped.
+        chunk = chunk[~chunk["ASECFLAG"].eq(1).fillna(False).astype(bool)]
     counts.append(len(chunk))
     chunk = chunk[chunk["EARNWT"] > 0]
     counts.append(len(chunk))
