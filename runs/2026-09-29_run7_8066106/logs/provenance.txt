@@ -1,0 +1,54 @@
+commit: 8066106b869b97ee445d972e03dee786fdde525c
+run: https://github.com/Patrickil07/Doctoral_Project/actions/runs/36615491015
+started_by: Patrickil07
+date_utc: 2026-09-29T19:12:45Z
+{
+  "extract_id": 3,
+  "requested_id": 3,
+  "note": "downloaded as is",
+  "downloaded_utc": "2026-09-29T18:55:58.577659+00:00"
+}{
+  "oews_national": {
+    "url": "https://www.bls.gov/oes/special-requests/oesm21nat.zip",
+    "sha256": "83ad09f19e62104a39024d36ed67cae5c3f7d5b42ff165ca656e0e35241bcf31",
+    "bytes": 278152,
+    "downloaded_utc": "2026-09-29T18:55:46.268830+00:00"
+  },
+  "census_soc_crosswalk": {
+    "url": "https://www2.census.gov/programs-surveys/demo/guidance/industry-occupation/2018-occupation-code-list-and-crosswalk.xlsx",
+    "sha256": "fca2818d691c32777a4cd733a9ab77c8c5bd47adcacd7ac3aa149bebd45b5f7f",
+    "bytes": 160312,
+    "downloaded_utc": "2026-09-29T18:55:46.484581+00:00"
+  },
+  "cpi_u": {
+    "url": "https://download.bls.gov/pub/time.series/cu/cu.data.1.AllItems",
+    "sha256": "47507ab13d9366d6e9f6a85a50bbd863179c97fa51c92ecb737875455d6ddc0f",
+    "bytes": 2688415,
+    "downloaded_utc": "2026-09-29T18:55:46.881054+00:00"
+  },
+  "soc_2010_to_2018_crosswalk": {
+    "url": "https://www.bls.gov/soc/2018/soc_2010_to_2018_crosswalk.xlsx",
+    "sha256": "f3a847561562d3e5a30eb848f2902a5f7b02e9c48b3d7f2cc8879899fbc242a7",
+    "bytes": 46630,
+    "downloaded_utc": "2026-09-29T18:55:47.503035+00:00"
+  },
+  "eloundou_occ_level": {
+    "url": "https://raw.githubusercontent.com/openai/GPTs-are-GPTs/0471612fef3cc22b74fb884d27bff9dbd3770582/data/occ_level.csv",
+    "sha256": "40c74f53de40aec91c0017d80690cbba915f83a8bb414bcf2f884692f1749acb",
+    "bytes": 126022,
+    "downloaded_utc": "2026-09-29T18:55:47.761041+00:00"
+  },
+  "lm_aioe": {
+    "url": "https://raw.githubusercontent.com/AIOE-Data/AIOE/adca5fc2cd0e9a659ff05278b7fa7a53f4f324c1/Language%20Modeling%20AIOE%20and%20AIIE.xlsx",
+    "sha256": "ccdd1fb916dfa404914367eafde7c00b7148ea86f18fe616240bc85cf6131c8b",
+    "bytes": 55714,
+    "downloaded_utc": "2026-09-29T18:55:47.941937+00:00"
+  }
+}{
+  "release": "30.3",
+  "url": "https://www.onetcenter.org/dl_files/database/db_30_3_text.zip",
+  "sha256": "7758ec966fd91895b3d290b83c9f1f1d46730d37fdda4faac67104d1c0d2a780",
+  "bytes": 13222549,
+  "downloaded_utc": "2026-09-29T18:55:53.340279+00:00",
+  "n_files": 47
+}

@@ -1,0 +1,40 @@
+[honest] rq1_task_composition.csv: 10 pre and 13 post quarters, target = average post coefficient
+[honest] 14 Mbar values on 4 cores in 6.5 min
+      Mbar          lb            ub   method excludes_zero
+        NA -0.07625234 -0.0133457706 Original          TRUE
+ 0.0000000 -0.07532056 -0.0142775445     C-LF          TRUE
+ 0.0625000 -0.09523986 -0.0027114987     C-LF          TRUE
+ 0.0703125 -0.09781010 -0.0007838244     C-LF          TRUE
+ 0.0781250 -0.10038033  0.0017864079     C-LF         FALSE
+ 0.0937500 -0.10616335  0.0062843146     C-LF         FALSE
+ 0.1250000 -0.11901451  0.0172078022     C-LF         FALSE
+ 0.2500000 -0.17363195  0.0679698918     C-LF         FALSE
+ 0.5000000 -0.28736474  0.1804175586     C-LF         FALSE
+ 0.7500000 -0.40077624  0.2931865045     C-LF         FALSE
+ 1.0000000 -0.51643670  0.4088469618     C-LF         FALSE
+ 1.2500000 -0.62952692  0.5219371867     C-LF         FALSE
+ 1.5000000 -0.74261715  0.6350274116     C-LF         FALSE
+ 1.7500000 -0.85570737  0.7481176365     C-LF         FALSE
+ 2.0000000 -0.96879760  0.8612078614     C-LF         FALSE
+[honest] breakdown Mbar = 0.0703 (next value tested includes zero; precision 0.01)
+[honest] written to data/out/results/rq1_task_composition_honest_did.csv 
+[honest] rq1_task_composition.csv: 3 pre and 13 post quarters, target = average post coefficient
+[honest] 14 Mbar values on 4 cores in 2.0 min
+      Mbar          lb            ub   method excludes_zero
+        NA -0.07625846 -0.0133825037 Original          TRUE
+ 0.0000000 -0.07532714 -0.0143138241     C-LF          TRUE
+ 0.0625000 -0.09523675 -0.0046801431     C-LF          TRUE
+ 0.0781250 -0.10101695 -0.0014689160     C-LF          TRUE
+ 0.0859375 -0.10358594  0.0004578202     C-LF         FALSE
+ 0.0937500 -0.10615492  0.0030268018     C-LF         FALSE
+ 0.1250000 -0.11899983  0.0120182375     C-LF         FALSE
+ 0.2500000 -0.17102170  0.0589021520     C-LF         FALSE
+ 0.5000000 -0.27634995  0.1610191713     C-LF         FALSE
+ 0.7500000 -0.38007258  0.2647418042     C-LF         FALSE
+ 1.0000000 -0.48540083  0.3675010689     C-LF         FALSE
+ 1.2500000 -0.59072907  0.4728293153     C-LF         FALSE
+ 1.5000000 -0.69348834  0.5755885801     C-LF         FALSE
+ 1.7500000 -0.79881659  0.6783478448     C-LF         FALSE
+ 2.0000000 -0.90157585  0.7811071096     C-LF         FALSE
+[honest] breakdown Mbar = 0.0781 (next value tested includes zero; precision 0.01)
+[honest] written to data/out/results_rq1_from_2021q4/rq1_task_composition_honest_did.csv 

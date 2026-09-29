@@ -1,0 +1,28 @@
+\begin{table}[htbp]\centering
+\caption{Pre-period coefficients by outcome and specification}
+\begin{tabular}{lccccccc}
+\toprule
+Outcome & Specification & pre quarters & max abs z & quarter of max & p<0.05 & p<0.10 & joint p \\
+\midrule
+RQ1 & Main specification & 10 & 3.1 & 2020Q2 & 3 & 7 & 0.227 \\
+RQ1 & Pandemic window dropped & 5 & 2.17 & 2021Q4 & 1 & 2 & 0.359 \\
+RQ1 & GPT-4-rated exposure & 10 & 2.59 & 2021Q1 & 1 & 1 & 0.017 \\
+RQ1 & LM-AIOE exposure & 10 & 1.78 & 2020Q2 & 0 & 1 & 0.495 \\
+RQ1 & RQ1 Model 2: linear trend & 0 &  &  &  &  &  \\
+RQ1 & RQ1 Model 3: from 2021Q4 & 3 & 2.17 & 2021Q4 & 1 & 1 & 0.172 \\
+RQ2 & Main specification & 10 & 0.89 & 2021Q1 & 0 & 0 & 0.836 \\
+RQ2 & Pandemic window dropped & 5 & 0.54 & 2022Q2 & 0 & 0 & 0.990 \\
+RQ2 & GPT-4-rated exposure & 10 & 0.98 & 2021Q1 & 0 & 0 & 0.703 \\
+RQ2 & LM-AIOE exposure & 10 & 2.13 & 2022Q2 & 1 & 1 & 0.122 \\
+RQ4 (no task controls) & Main specification & 10 & 2.08 & 2022Q2 & 1 & 1 & 0.373 \\
+RQ4 (no task controls) & Pandemic window dropped & 5 & 2.11 & 2022Q2 & 1 & 1 & 0.405 \\
+RQ4 (no task controls) & GPT-4-rated exposure & 10 & 2.65 & 2022Q1 & 4 & 6 & 0.041 \\
+RQ4 (no task controls) & LM-AIOE exposure & 10 & 2.87 & 2022Q2 & 2 & 4 & 0.001 \\
+RQ4 (task controls) & Main specification & 10 & 2.13 & 2022Q2 & 1 & 1 & 0.414 \\
+RQ4 (task controls) & Pandemic window dropped & 5 & 2.14 & 2022Q2 & 1 & 1 & 0.270 \\
+RQ4 (task controls) & GPT-4-rated exposure & 10 & 2.33 & 2020Q4 & 2 & 4 & 0.159 \\
+RQ4 (task controls) & LM-AIOE exposure & 10 & 2.96 & 2021Q4 & 3 & 5 & 0.000 \\
+\bottomrule
+\end{tabular}
+\par\vspace{2pt}{\footnotesize Counts of individually significant pre-period coefficients, the largest $|$estimate/SE$|$, and the p-value of the joint Wald test that all pre-period coefficients are zero (clustered covariance; blank for runs made before step 07 saved it).}
+\end{table}
