@@ -13,13 +13,13 @@
 # Usage:
 #   Rscript src/08_honest_did.R --results data/out/results \
 #       [--file rq1_task_composition.csv] [--mbar-max 2] [--mbar-step 0.25]
-#       [--refine-to 0.05]   (breakdown bisected to this precision; Inf = no refining)
+#       [--refine-to 0.01]   (breakdown bisected to this precision; Inf = no refining)
 
 suppressPackageStartupMessages(library(HonestDiD))
 
 args <- commandArgs(trailingOnly = TRUE)
 opt <- list(results = "data/out/results", file = "rq1_task_composition.csv",
-            `mbar-max` = "2", `mbar-step` = "0.25", `refine-to` = "0.05",
+            `mbar-max` = "2", `mbar-step` = "0.25", `refine-to` = "0.01",
             target = "average")
 i <- 1
 while (i <= length(args)) {
