@@ -12,13 +12,15 @@
 #
 # Usage:
 #   Rscript src/08_honest_did.R --results data/out/results \
-#       [--file rq1_task_composition.csv] [--mbar-max 2] [--mbar-step 0.1]
+#       [--file rq1_task_composition.csv] [--mbar-max 2] [--mbar-step 0.25]
+#       [--refine-to 0.05]   (breakdown bisected to this precision; Inf = no refining)
 
 suppressPackageStartupMessages(library(HonestDiD))
 
 args <- commandArgs(trailingOnly = TRUE)
 opt <- list(results = "data/out/results", file = "rq1_task_composition.csv",
-            `mbar-max` = "2", `mbar-step` = "0.1", target = "average")
+            `mbar-max` = "2", `mbar-step` = "0.25", `refine-to` = "0.05",
+            target = "average")
 i <- 1
 while (i <= length(args)) {
   key <- sub("^--", "", args[i])
@@ -57,23 +59,53 @@ cat(sprintf("[honest] %s: %d pre and %d post quarters, target = %s post coeffici
 # The robust set is found by testing points on a grid. HonestDiD's default grid
 # is centred on zero, so a precisely estimated non-zero effect can fall
 # outside it and every point is rejected. Centre it on the point estimate and
-# widen it while any bound sits on the grid's edge (an open-ended set).
+# widen it while a bound sits on the grid's edge (an open-ended set).
 point <- sum(l_vec * res$estimate[res$period == "post"])
 post_idx <- which(res$period == "post")
 sd_theta <- sqrt(drop(t(l_vec) %*% V[post_idx, post_idx] %*% l_vec))
-half <- 20 * sd_theta
-for (attempt in 1:4) {
-  robust <- createSensitivityResults_relativeMagnitudes(
-    betahat = res$estimate, sigma = V, numPrePeriods = n_pre, numPostPeriods = n_post,
-    l_vec = l_vec, Mbarvec = mbar, alpha = 0.05,
-    grid.lb = point - half, grid.ub = point + half, gridPoints = 1000)
-  tol <- 2 * half / 999
-  at_edge <- is.finite(robust$lb) & is.finite(robust$ub) &
-    (robust$lb <= point - half + tol | robust$ub >= point + half - tol)
-  if (!any(at_edge) || attempt == 4) break
-  half <- half * 4
+
+robust_at <- function(m) {
+  half <- 20 * sd_theta
+  for (attempt in 1:4) {
+    r <- createSensitivityResults_relativeMagnitudes(
+      betahat = res$estimate, sigma = V, numPrePeriods = n_pre, numPostPeriods = n_post,
+      l_vec = l_vec, Mbarvec = m, alpha = 0.05,
+      grid.lb = point - half, grid.ub = point + half, gridPoints = 1000)
+    tol <- 2 * half / 999
+    edge <- is.finite(r$lb) && is.finite(r$ub) &&
+      (r$lb <= point - half + tol || r$ub >= point + half - tol)
+    if (!edge || attempt == 4) break
+    half <- half * 4
+  }
+  data.frame(Mbar = m, lb = r$lb, ub = r$ub, method = r$method, at_grid_edge = edge)
 }
-robust$at_grid_edge <- at_edge
+
+# Each Mbar is independent, so run them on all cores. Then refine the
+# breakdown value by bisection between the last Mbar that excludes zero and
+# the first that includes it, instead of paying for a fine grid everywhere.
+cores <- max(1, parallel::detectCores())
+t0 <- Sys.time()
+run_many <- function(ms) {
+  parts <- parallel::mclapply(ms, robust_at, mc.cores = cores)
+  bad <- vapply(parts, inherits, logical(1), what = "try-error")
+  if (any(bad)) stop("HonestDiD failed at Mbar ", paste(ms[bad], collapse = ", "), ": ",
+                     as.character(parts[bad][[1]]))
+  do.call(rbind, parts)
+}
+robust <- run_many(mbar)
+excludes0 <- function(d) d$lb > 0 | d$ub < 0
+refine_to <- as.numeric(opt$`refine-to`)
+repeat {
+  robust <- robust[order(robust$Mbar), ]
+  e <- excludes0(robust)
+  if (!is.finite(refine_to) || !e[1] || all(e)) break
+  hi <- robust$Mbar[which(!e)[1]]
+  lo <- max(robust$Mbar[robust$Mbar < hi & e])
+  if (hi - lo <= refine_to) break
+  robust <- rbind(robust, run_many((lo + hi) / 2))
+}
+cat(sprintf("[honest] %d Mbar values on %d cores in %.1f min\n", nrow(robust), cores,
+            as.numeric(difftime(Sys.time(), t0, units = "mins"))))
 original <- constructOriginalCS(betahat = res$estimate, sigma = V, numPrePeriods = n_pre,
                                 numPostPeriods = n_post, l_vec = l_vec, alpha = 0.05)
 
@@ -88,11 +120,10 @@ if (any(!is.finite(robust$lb) | !is.finite(robust$ub))) {
 out <- rbind(
   data.frame(Mbar = NA, lb = original$lb, ub = original$ub, method = "Original",
              at_grid_edge = FALSE),
-  data.frame(Mbar = robust$Mbar, lb = robust$lb, ub = robust$ub, method = robust$method,
-             at_grid_edge = robust$at_grid_edge))
+  robust)
 if (any(out$at_grid_edge)) {
   cat(sprintf("[honest] note: at Mbar %s the robust set reaches the widest grid tried (point +/- %.3g), so that bound is open-ended\n",
-              paste(out$Mbar[out$at_grid_edge], collapse = ", "), half))
+              paste(out$Mbar[out$at_grid_edge], collapse = ", "), 20 * 4^3 * sd_theta))
 }
 out$excludes_zero <- out$lb > 0 | out$ub < 0
 out$estimate <- point
@@ -115,6 +146,7 @@ if (is.na(breakdown)) {
   cat(sprintf("[honest] breakdown Mbar: above %s (zero excluded over the whole grid)\n",
               opt$`mbar-max`))
 } else {
-  cat(sprintf("[honest] breakdown Mbar = %s (grid step %s)\n", breakdown, opt$`mbar-step`))
+  cat(sprintf("[honest] breakdown Mbar = %.3g (next value tested includes zero; precision %s)\n",
+              breakdown, opt$`refine-to`))
 }
 cat("[honest] written to", dest, "\n")

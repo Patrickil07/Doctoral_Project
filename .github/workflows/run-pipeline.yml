@@ -94,6 +94,7 @@ jobs:
           use-public-rspm: true
       - name: 08 Honest DiD for RQ1 (Models 1 and 3)
         continue-on-error: true
+        timeout-minutes: 120   # never let this optional step use up the job's time limit
         run: |
           sudo apt-get install -y -qq libglpk40   # system library the Rglpk binary links to
           Rscript .github/install_honestdid.R
