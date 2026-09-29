@@ -1,0 +1,9 @@
+built_from: /home/runner/work/Doctoral_Project/Doctoral_Project
+figure_code_commit: beb8034406e12a58405168c136f7f0bdc92b5bc5
+specifications:
+  results: Main specification
+  results_drop_pandemic: Pandemic window dropped
+  results_exposure_gpt4beta: GPT-4-rated exposure
+  results_exposure_lmaioe: LM-AIOE exposure
+  results_rq1_trend: RQ1 Model 2: linear trend
+  results_rq1_from_2021q4: RQ1 Model 3: from 2021Q4

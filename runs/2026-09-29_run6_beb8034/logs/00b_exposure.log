@@ -1,0 +1,5 @@
+[exposure] eloundou_occ_level.csv: codes from 'O*NET-SOC Code', scores from 'human_rating_beta'
+[exposure] 923 O*NET-SOC codes collapsed to 6-digit SOC by unweighted mean
+[exposure] 798 6-digit SOC 2018 occupations read
+[exposure] human_rating_beta: mean 0.286, sd 0.205, range [0.000, 0.844]
+[exposure] written data/interim/exposure_soc2018.csv

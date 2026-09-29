@@ -1,0 +1,7 @@
+[task] 894 O*NET-SOC occupations written to data/interim/task_composition.csv
+[task] composition means:
+c1_nonroutine_analytic         0.3292
+c2_nonroutine_interpersonal    0.3005
+c3_routine_cognitive           0.2099
+c4_residual                    0.1603
+[task] z3 (analytic:routine balance) mean=0.3199 sd=0.0568

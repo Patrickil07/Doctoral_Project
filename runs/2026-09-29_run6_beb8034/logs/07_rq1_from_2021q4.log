@@ -1,0 +1,5 @@
+[est] window starts 2021Q4, N=85,700
+[est] RQ1 — task composition of employment held (Eq. 5)
+      pre-trend check: {'n_pre': 3, 'max_abs_z': 2.1717866234046705, 'any_sig_5pct': True, 'wald_chi2': 4.999904048130078, 'wald_df': 3, 'wald_p': 0.17180417049887703}
+
+[est] RQ1 results -> data/out/results_rq1_from_2021q4
