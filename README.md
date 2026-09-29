@@ -34,7 +34,8 @@ Google Drive layout (`My Drive/doctoral project/`):
 │   ├── 04_ipums_extract.py          IPUMS CPS extract via the IPUMS API
 │   ├── 05_build_sample.py           estimation sample (Table 4.1 log)
 │   ├── 06_figures_tables.py         Chapter 4 figures + formatted tables, from saved results only
-│   └── 07_estimate.py               RQ1–RQ4 (Eqs. 5–7)
+│   ├── 07_estimate.py               RQ1–RQ4 (Eqs. 5–7) and the RQ1 specification menu
+│   └── 08_honest_did.R              Rambachan & Roth (2023) sensitivity for RQ1 (HonestDiD R package)
 ├── mapping/                     O*NET activity → task-part mapping (a design choice; versioned)
 ├── notebooks/
 │   └── run_pipeline_colab.ipynb     runs src/ on Colab: code from GitHub, data on Drive
@@ -84,6 +85,24 @@ The whole pipeline runs on GitHub's machines with one click; no Colab needed.
 Every input is downloaded fresh; IPUMS microdata stays on the runner and is
 deleted afterwards. Only aggregate outputs are kept.
 
+### RQ1 specification menu
+
+Every run estimates RQ1 three ways, each saved as its own results folder:
+
+| Model | Folder | What it does |
+|---|---|---|
+| 1 Baseline | `results/` | Event study over 2020–2025 (Eq. 5), pre-trend shown as estimated |
+| 2 Linear trend | `results_rq1_trend/` | Adds E×J×t (t = quarters from 2022Q3) and keeps post-quarter dummies only, so the trend is fitted on the pre-period and each post coefficient is the deviation from its extrapolation (Dobkin et al. 2018) |
+| 3 From 2021Q4 | `results_rq1_from_2021q4/` | Same as Model 1 on 2021Q4–2025Q4 |
+
+With every pre-period dummy kept, a linear E×J×t term would be perfectly
+collinear with them, which is why Model 2 drops them. Each event study also
+saves its clustered covariance matrix (`*_vcov.csv`), which gives the joint
+pre-trend Wald test and feeds step 08: the Rambachan & Roth (2023)
+relative-magnitudes sensitivity for the average post-period RQ1 coefficient
+(Models 1 and 3; Model 2 has no pre-period coefficients), including the
+breakdown value M̄.
+
 ### Chapter 4 figures and tables (step 06)
 
 Each pipeline run ends with step 06, which turns the saved result files into
@@ -112,6 +131,8 @@ make exposure                   # Eloundou human-rated beta → SOC 2018
 make estimate                   # 02 → 03 → 05 → 07, rebuilding only what changed
 make robustness                 # pandemic window dropped
 make robustness-exposure        # GPT-4-rated beta, LM-AIOE
+make rq1-models                 # RQ1 Model 2 (linear trend), Model 3 (from 2021Q4)
+make honest-did                 # 08: Rambachan & Roth sensitivity (needs R + HonestDiD)
 make figures                    # 06: Chapter 4 figures + tables -> data/out/chapter4/
 ```
 

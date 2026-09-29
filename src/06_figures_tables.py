@@ -45,6 +45,8 @@ SPEC_LABELS = {
     "results_drop_pandemic": "Pandemic window dropped",
     "results_exposure_gpt4beta": "GPT-4-rated exposure",
     "results_exposure_lmaioe": "LM-AIOE exposure",
+    "results_rq1_trend": "RQ1 Model 2: linear trend",
+    "results_rq1_from_2021q4": "RQ1 Model 3: from 2021Q4",
 }
 
 # Event-study outcomes: file in each specification folder -> figure/table meta.
@@ -445,15 +447,61 @@ STAR_NOTE = ("Standard errors clustered on occupation in parentheses. "
              "* p<0.10, ** p<0.05, *** p<0.01.")
 
 
-def pretrend_rows(es: pd.DataFrame) -> dict:
+def joint_wald_p(es: pd.DataFrame, vcov: pd.DataFrame | None) -> float:
+    """p-value of the Wald test that all pre-period coefficients are zero
+    (same test as 07_estimate.joint_wald); NaN without a covariance matrix."""
+    from scipy import stats
+    terms = list(es.loc[es["period"] == "pre", "term"])
+    if vcov is None or not terms or not set(terms) <= set(vcov.index):
+        return np.nan
+    b = es.set_index("term").loc[terms, "estimate"].to_numpy()
+    V = vcov.loc[terms, terms].to_numpy()
+    return float(stats.chi2.sf(float(b @ np.linalg.pinv(V) @ b), len(terms)))
+
+
+def pretrend_rows(es: pd.DataFrame, vcov: pd.DataFrame | None = None) -> dict:
     pre = es[es["period"] == "pre"]
     if pre.empty:
-        return {"pre quarters": 0}
+        return {"pre quarters": 0, "max abs z": "", "quarter of max": "", "p<0.05": "",
+                "p<0.10": "", "joint p": ""}
     z = (pre["estimate"] / pre["se"]).abs()
+    p = joint_wald_p(es, vcov)
     return {"pre quarters": len(pre), "max abs z": round(float(z.max()), 2),
             "quarter of max": pre.loc[z.idxmax(), "quarter"],
             "p<0.05": int((pre["pvalue"] < 0.05).sum()),
-            "p<0.10": int((pre["pvalue"] < 0.10).sum())}
+            "p<0.10": int((pre["pvalue"] < 0.10).sum()),
+            "joint p": "" if np.isnan(p) else f"{p:.3f}"}
+
+
+def read_vcov(root: pathlib.Path, spec: str, fname: str) -> pd.DataFrame | None:
+    p = root / "data" / "out" / spec / fname.replace(".csv", "_vcov.csv")
+    return pd.read_csv(p, index_col=0) if p.exists() else None
+
+
+def fig_honest_did(hd: pd.DataFrame, title: str):
+    """Robust 95% sets for the average post coefficient as Mbar grows, with the
+    conventional interval on the left."""
+    orig = hd[hd["method"] == "Original"].iloc[0]
+    rob = hd[hd["method"] != "Original"].sort_values("Mbar")
+    fig, ax = plt.subplots(figsize=(6.5, 3.2))
+    step = float(rob["Mbar"].diff().median()) if len(rob) > 1 else 0.1
+    x0 = -2 * step
+    ax.errorbar([x0], [(orig["lb"] + orig["ub"]) / 2], yerr=[[(orig["ub"] - orig["lb"]) / 2]],
+                fmt="none", ecolor=COLORS[1], elinewidth=2.0, label="Conventional 95% CI")
+    ax.vlines(rob["Mbar"], rob["lb"], rob["ub"], color=COLORS[0], linewidth=2.0,
+              label="Robust 95% set (relative magnitudes)")
+    ax.axhline(0, color=MUTED, linewidth=0.8)
+    ax.set_xlabel("M̄ (post violations relative to the largest pre-period violation)")
+    ax.set_ylabel("Average post-period coefficient")
+    ax.set_title(title, loc="left")
+    b = hd["breakdown_Mbar"].iloc[0]
+    txt = ("breakdown M̄: none (includes 0 at M̄ = 0)" if pd.isna(b) else
+           f"breakdown M̄ > {rob['Mbar'].max():g}" if np.isinf(b) else f"breakdown M̄ = {b:g}")
+    ax.text(0.99, 0.02, txt, transform=ax.transAxes, ha="right", va="bottom",
+            color=MUTED, fontsize=8)
+    ax.legend(loc="upper left", fontsize=8)
+    fig.tight_layout()
+    return fig
 
 
 def build(root: pathlib.Path, outdir: pathlib.Path, specs: list, labels: dict) -> int:
@@ -511,27 +559,60 @@ def build(root: pathlib.Path, outdir: pathlib.Path, specs: list, labels: dict) -
     # Event studies: RQ1, RQ2, RQ4
     pre_rows = []
     for key, (fname, title, ylab) in EVENT_STUDIES.items():
-        frames = {s: read_result(root, s, fname) for s in specs}
-        frames = {s: d for s, d in frames.items() if d is not None}
-        if not frames:
+        full = {s: read_result(root, s, fname) for s in specs}
+        full = {s: d for s, d in full.items() if d is not None}
+        if not full:
             continue
+        # Model 2 adds a trend row (period "trend", no quarter): tabulated, not plotted
+        frames = {s: d[d["period"] != "trend"].reset_index(drop=True) for s, d in full.items()}
         if MAIN in frames and key != "rq4_cond" and key != "rq4_uncond":
             save_fig(fig_event_main(frames[MAIN], title, ylab), outdir, f"fig_{key}_event_study")
         if len(frames) > 1:
             save_fig(fig_event_by_spec({lab[s]: d for s, d in frames.items()}, title, ylab),
                      outdir, f"fig_{key}_event_study_by_spec")
         quarters = sorted(set().union(*(set(d["quarter"]) for d in frames.values())))
-        blocks = {lab[s]: d.set_index("quarter") for s, d in frames.items()}
-        f = stacked_coef_table(blocks, quarters)
+        blocks = {lab[s]: d.assign(quarter=d["quarter"].where(d["period"] != "trend", "trend"))
+                  .set_index("quarter") for s, d in full.items()}
+        has_trend = any((d["period"] == "trend").any() for d in full.values())
+        f = stacked_coef_table(blocks, quarters + (["trend"] if has_trend else []),
+                               {"trend": "Linear trend E × J × t"})
         f.columns = ["Quarter"] + list(f.columns[1:])
-        raw = pd.concat([d.assign(specification=s) for s, d in frames.items()], ignore_index=True)
+        raw = pd.concat([d.assign(specification=s) for s, d in full.items()], ignore_index=True)
+        trend_note = (" Model 2 replaces the pre-period dummies with the linear trend; its "
+                      "post coefficients are deviations from the extrapolated trend."
+                      if has_trend else "")
         tw.write(f"table_{key}_event_study", f, title,
-                 f"Reference quarter {REF_Q} omitted. " + STAR_NOTE, raw=raw)
+                 f"Reference quarter {REF_Q} omitted. " + STAR_NOTE + trend_note, raw=raw)
         for s, d in frames.items():
             pre_rows.append({"Outcome": title.split(":")[0] + (
                 " (no task controls)" if key == "rq4_uncond" else
                 " (task controls)" if key == "rq4_cond" else ""),
-                "Specification": lab[s], **pretrend_rows(d)})
+                "Specification": lab[s], **pretrend_rows(d, read_vcov(root, s, fname))})
+
+    # Honest DiD (step 08) for RQ1
+    hd_rows = []
+    for s in specs:
+        hd = read_result(root, s, "rq1_task_composition_honest_did.csv")
+        if hd is None:
+            continue
+        save_fig(fig_honest_did(hd, f"RQ1 sensitivity to parallel-trends violations: {lab[s]}"),
+                 outdir, f"fig_rq1_honest_did_{s.removeprefix('results').strip('_') or 'main'}")
+        for _, r in hd.iterrows():
+            hd_rows.append({"Specification": lab[s],
+                            "M̄": "conventional" if r["method"] == "Original" else f"{r['Mbar']:g}",
+                            "95% set": f"[{r['lb']:.3f}, {r['ub']:.3f}]",
+                            "Excludes 0": "yes" if r["excludes_zero"] else "no"})
+    if hd_rows:
+        raw = pd.concat([read_result(root, s, "rq1_task_composition_honest_did.csv")
+                         .assign(specification=s) for s in specs
+                         if read_result(root, s, "rq1_task_composition_honest_did.csv") is not None],
+                        ignore_index=True)
+        tw.write("table_rq1_honest_did", pd.DataFrame(hd_rows),
+                 "RQ1: Rambachan and Roth (2023) sensitivity of the average post-period coefficient",
+                 "Relative-magnitudes restriction: each post-period violation of parallel trends is "
+                 "at most M̄ times the largest pre-period one. Robust sets from the HonestDiD R "
+                 "package (step 08); the breakdown M̄ is the largest M̄ at which zero is excluded.",
+                 raw=raw)
 
     rq4u = read_result(root, MAIN, EVENT_STUDIES["rq4_uncond"][0]) if MAIN in specs else None
     rq4c = read_result(root, MAIN, EVENT_STUDIES["rq4_cond"][0]) if MAIN in specs else None
@@ -557,8 +638,10 @@ def build(root: pathlib.Path, outdir: pathlib.Path, specs: list, labels: dict) -
         raw = pd.DataFrame(pre_rows)
         tw.write("table_pretrends", raw.fillna(""),
                  "Pre-period coefficients by outcome and specification",
-                 "Counts of individually significant pre-period coefficients and the largest "
-                 "|estimate/SE|. Not a joint test (step 07 does not save the covariance matrix).",
+                 "Counts of individually significant pre-period coefficients, the largest "
+                 "|estimate/SE|, and the p-value of the joint Wald test that all pre-period "
+                 "coefficients are zero (clustered covariance; blank for runs made before "
+                 "step 07 saved it).",
                  raw=raw)
 
     # RQ3 hedonic

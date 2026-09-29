@@ -393,7 +393,7 @@ def test_absorbed_fixed_effects_match_dummy_regression():
                       "cl": rng.integers(0, 40, n)})
     d["y"] = 0.7 * d["x"] + d["g"] * 0.1 + d["h"] * 0.3 + rng.normal(size=n)
     dummy = smf.wls("y ~ x + C(g) + C(h)", data=d, weights=d["EARNWT"]).fit()
-    b, _, _ = est._fit_absorbed(d, "y", ["x"], ["g", "h"], "cl")
+    b, _, _, _ = est._fit_absorbed(d, "y", ["x"], ["g", "h"], "cl")
     assert b["x"] == pytest.approx(dummy.params["x"], abs=1e-8)
 
 
@@ -429,3 +429,42 @@ def test_estimation_specs_run(fake_sample):
     assert rq3["term"].str.contains("z3:early_career:post").any()
     rq2 = est.early_share(fake_sample)
     assert len(rq2) == 11 and rq2["se"].notna().all()
+
+
+def test_quarters_from_ref():
+    t = est.quarters_from_ref(pd.Series(["2022Q2", "2022Q3", "2022Q4", "2020Q1"]))
+    assert list(t) == [-1, 0, 1, -10]
+
+
+def test_rq1_trend_model_removes_planted_linear_pretrend():
+    """Model 2: a linear E x J x t drift with no break is absorbed by the trend
+    term, so post coefficients are ~0; the baseline shows it as a pre-trend."""
+    rng = np.random.default_rng(5)
+    occs = np.arange(40)
+    expo = dict(zip(occs, rng.uniform(0, 1, 40)))
+    quarters = [str(p) for p in pd.period_range("2020Q1", "2025Q4", freq="Q")]
+    n = 40000
+    d = pd.DataFrame({"OCC": rng.choice(occs, n), "quarter": rng.choice(quarters, n),
+                      "STATEFIP": rng.choice([6, 36, 48], n), "SEX": rng.choice([1, 2], n),
+                      "AGE": rng.integers(22, 56, n), "EDUC": rng.choice([73, 111], n),
+                      "EARNWT": rng.uniform(.5, 2, n), "early_career": rng.integers(0, 2, n)})
+    d["exposure"] = d["OCC"].map(expo)
+    t = est.quarters_from_ref(d["quarter"])
+    d["z3"] = 0.02 * d["exposure"] * d["early_career"] * t + rng.normal(0, .05, n)
+    base = est.event_study(d, "z3", with_tasks=False)
+    res, V = est.event_study(d, "z3", with_tasks=False, trend=True, return_vcov=True)
+    assert est.pretrend_test(base)["max_abs_z"] > 5
+    trend = res.loc[res["period"] == "trend", "estimate"].item()
+    assert trend == pytest.approx(0.02, abs=0.003)
+    assert set(res["period"]) == {"post", "trend"}
+    assert res.loc[res["period"] == "post", "estimate"].abs().max() < 0.03
+    assert list(V.index) == list(res["term"])
+
+
+def test_joint_wald_matches_hand_computation():
+    res = pd.DataFrame({"term": ["a", "b", "c"], "estimate": [0.2, -0.1, 0.5],
+                        "period": ["pre", "pre", "post"]})
+    V = pd.DataFrame(np.diag([0.01, 0.04, 0.09]), index=res["term"], columns=res["term"])
+    w = est.joint_wald(res, V)
+    assert w["wald_df"] == 2
+    assert w["wald_chi2"] == pytest.approx(0.2 ** 2 / 0.01 + 0.1 ** 2 / 0.04)

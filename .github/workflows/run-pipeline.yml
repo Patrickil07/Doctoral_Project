@@ -1,5 +1,6 @@
-# Runs the full CPS / O*NET pipeline (steps 00 -> 07, robustness checks, then step 06
-# figures and Chapter 4 tables from the saved results) on a
+# Runs the full CPS / O*NET pipeline (steps 00 -> 07, robustness checks, the RQ1
+# specification menu, step 08 Honest DiD, then step 06 figures and Chapter 4
+# tables from the saved results) on a
 # GitHub-hosted machine. Every input is downloaded fresh; IPUMS microdata never
 # leaves the runner. Only aggregate outputs (result tables, sample-construction
 # log, step logs) are kept: as a run artifact (90 days) and, permanently, as a
@@ -79,6 +80,25 @@ jobs:
           python src/03_crosswalk.py --exposure data/interim/exposure_lmaioe_soc2018.csv --out data/interim/occ_measures_lmaioe.csv
           python src/05_build_sample.py --occ data/interim/occ_measures_lmaioe.csv --out data/out/analysis_sample_lmaioe.parquet
           python src/07_estimate.py --sample data/out/analysis_sample_lmaioe.parquet --out data/out/results_exposure_lmaioe
+
+      - name: RQ1 Model 2 - linear exposure x early-career trend
+        run: python src/07_estimate.py --rq1-trend --rq1-only --out data/out/results_rq1_trend | tee logs/07_rq1_trend.log
+      - name: RQ1 Model 3 - window from 2021Q4
+        run: python src/07_estimate.py --start-quarter 2021Q4 --rq1-only --out data/out/results_rq1_from_2021q4 | tee logs/07_rq1_from_2021q4.log
+
+      # Rambachan & Roth sensitivity (reference R implementation). Optional
+      # like step 06: a failure here never stops the results being saved.
+      - uses: r-lib/actions/setup-r@v2
+        continue-on-error: true
+        with:
+          use-public-rspm: true
+      - name: 08 Honest DiD for RQ1 (Models 1 and 3)
+        continue-on-error: true
+        run: |
+          Rscript .github/install_honestdid.R
+          for d in data/out/results data/out/results_rq1_from_2021q4; do
+            Rscript src/08_honest_did.R --results "$d"
+          done | tee logs/08_honest_did.log
 
       # A figure bug must never cost a finished run its results: on failure the
       # results are still saved, and build-chapter4 can redo this step later.
