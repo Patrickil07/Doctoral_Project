@@ -600,7 +600,8 @@ def build(root: pathlib.Path, outdir: pathlib.Path, specs: list, labels: dict) -
         for _, r in hd.iterrows():
             hd_rows.append({"Specification": lab[s],
                             "M̄": "conventional" if r["method"] == "Original" else f"{r['Mbar']:g}",
-                            "95% set": f"[{r['lb']:.3f}, {r['ub']:.3f}]",
+                            "95% set": f"[{r['lb']:.3f}, {r['ub']:.3f}]" + (
+                                " (open-ended)" if bool(r.get("at_grid_edge", False)) else ""),
                             "Excludes 0": "yes" if r["excludes_zero"] else "no"})
     if hd_rows:
         raw = pd.concat([read_result(root, s, "rq1_task_composition_honest_did.csv")

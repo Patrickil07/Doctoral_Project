@@ -54,9 +54,26 @@ mbar <- seq(0, as.numeric(opt$`mbar-max`), by = as.numeric(opt$`mbar-step`))
 
 cat(sprintf("[honest] %s: %d pre and %d post quarters, target = %s post coefficient\n",
             opt$file, n_pre, n_post, opt$target))
-robust <- createSensitivityResults_relativeMagnitudes(
-  betahat = res$estimate, sigma = V, numPrePeriods = n_pre, numPostPeriods = n_post,
-  l_vec = l_vec, Mbarvec = mbar, alpha = 0.05)
+# The robust set is found by testing points on a grid. HonestDiD's default grid
+# is centred on zero, so a precisely estimated non-zero effect can fall
+# outside it and every point is rejected. Centre it on the point estimate and
+# widen it while any bound sits on the grid's edge (an open-ended set).
+point <- sum(l_vec * res$estimate[res$period == "post"])
+post_idx <- which(res$period == "post")
+sd_theta <- sqrt(drop(t(l_vec) %*% V[post_idx, post_idx] %*% l_vec))
+half <- 20 * sd_theta
+for (attempt in 1:4) {
+  robust <- createSensitivityResults_relativeMagnitudes(
+    betahat = res$estimate, sigma = V, numPrePeriods = n_pre, numPostPeriods = n_post,
+    l_vec = l_vec, Mbarvec = mbar, alpha = 0.05,
+    grid.lb = point - half, grid.ub = point + half, gridPoints = 1000)
+  tol <- 2 * half / 999
+  at_edge <- is.finite(robust$lb) & is.finite(robust$ub) &
+    (robust$lb <= point - half + tol | robust$ub >= point + half - tol)
+  if (!any(at_edge) || attempt == 4) break
+  half <- half * 4
+}
+robust$at_grid_edge <- at_edge
 original <- constructOriginalCS(betahat = res$estimate, sigma = V, numPrePeriods = n_pre,
                                 numPostPeriods = n_post, l_vec = l_vec, alpha = 0.05)
 
@@ -68,10 +85,15 @@ if (any(!is.finite(robust$lb) | !is.finite(robust$ub))) {
        "check the log above")
 }
 
-point <- sum(l_vec * res$estimate[res$period == "post"])
 out <- rbind(
-  data.frame(Mbar = NA, lb = original$lb, ub = original$ub, method = "Original"),
-  data.frame(Mbar = robust$Mbar, lb = robust$lb, ub = robust$ub, method = robust$method))
+  data.frame(Mbar = NA, lb = original$lb, ub = original$ub, method = "Original",
+             at_grid_edge = FALSE),
+  data.frame(Mbar = robust$Mbar, lb = robust$lb, ub = robust$ub, method = robust$method,
+             at_grid_edge = robust$at_grid_edge))
+if (any(out$at_grid_edge)) {
+  cat(sprintf("[honest] note: at Mbar %s the robust set reaches the widest grid tried (point +/- %.3g), so that bound is open-ended\n",
+              paste(out$Mbar[out$at_grid_edge], collapse = ", "), half))
+}
 out$excludes_zero <- out$lb > 0 | out$ub < 0
 out$estimate <- point
 out$target <- opt$target

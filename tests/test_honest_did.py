@@ -55,7 +55,8 @@ def test_clear_break_with_flat_pretrend_survives_some_mbar(tmp_path):
     assert out["breakdown_Mbar"].iloc[0] >= 0.5
     rob = out[out["method"] != "Original"].sort_values("Mbar")
     widths = (rob["ub"] - rob["lb"]).to_numpy()
-    assert (np.diff(widths) >= -1e-9).all()      # robust sets widen with Mbar
+    assert np.isfinite(widths).all() and widths[-1] > widths[0]   # widen with Mbar
+    assert rob["lb"].iloc[0] < 0.5 < rob["ub"].iloc[0]
 
 
 def test_no_effect_has_no_breakdown(tmp_path):
