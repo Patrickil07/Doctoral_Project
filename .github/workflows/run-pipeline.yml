@@ -1,4 +1,5 @@
-# Runs the full CPS / O*NET pipeline (steps 00 -> 07 and robustness checks) on a
+# Runs the full CPS / O*NET pipeline (steps 00 -> 07, robustness checks, then step 06
+# figures and Chapter 4 tables from the saved results) on a
 # GitHub-hosted machine. Every input is downloaded fresh; IPUMS microdata never
 # leaves the runner. Only aggregate outputs (result tables, sample-construction
 # log, step logs) are kept: as a run artifact (90 days) and, permanently, as a
@@ -79,6 +80,12 @@ jobs:
           python src/05_build_sample.py --occ data/interim/occ_measures_lmaioe.csv --out data/out/analysis_sample_lmaioe.parquet
           python src/07_estimate.py --sample data/out/analysis_sample_lmaioe.parquet --out data/out/results_exposure_lmaioe
 
+      # A figure bug must never cost a finished run its results: on failure the
+      # results are still saved, and build-chapter4 can redo this step later.
+      - name: 06 figures and Chapter 4 tables (from saved results only)
+        continue-on-error: true
+        run: python src/06_figures_tables.py --root . --out data/out/chapter4 | tee logs/06_figures_tables.log
+
       - name: Record provenance
         if: always()
         run: |
@@ -99,6 +106,7 @@ jobs:
           name: pipeline-results
           path: |
             data/out/results*/*.csv
+            data/out/chapter4/
             data/interim/occ_measures*.csv
             logs/
           retention-days: 90
@@ -121,6 +129,7 @@ jobs:
           mkdir -p "$out/$dest"
           cp --parents data/out/results*/*.csv data/interim/occ_measures*.csv "$out/$dest/"
           cp -r logs "$out/$dest/"
+          [ -d data/out/chapter4 ] && cp -r data/out/chapter4 "$out/$dest/chapter4"
           cd "$out"
           git add -A
           git commit -q -m "Results of run ${GITHUB_RUN_NUMBER} (commit ${GITHUB_SHA::7})"

@@ -33,6 +33,7 @@ Google Drive layout (`My Drive/doctoral project/`):
 │   ├── 03_crosswalk.py              SOC → CPS occupation codes, OEWS weights, exposure
 │   ├── 04_ipums_extract.py          IPUMS CPS extract via the IPUMS API
 │   ├── 05_build_sample.py           estimation sample (Table 4.1 log)
+│   ├── 06_figures_tables.py         Chapter 4 figures + formatted tables, from saved results only
 │   └── 07_estimate.py               RQ1–RQ4 (Eqs. 5–7)
 ├── mapping/                     O*NET activity → task-part mapping (a design choice; versioned)
 ├── notebooks/
@@ -45,8 +46,8 @@ Google Drive layout (`My Drive/doctoral project/`):
 └── requirements*.txt
 ```
 
-Step 06 is unused: the USAJOBS strand was removed because no research
-question uses it (the number is kept so existing references stay valid).
+Step 06 (figures and tables) runs after step 07 because it only reads the
+result files 07 writes; the number was freed when the USAJOBS strand was removed.
 
 Each `notebooks/*.ipynb` has a `.py` twin (jupytext) so changes are readable in diffs.
 
@@ -83,6 +84,24 @@ The whole pipeline runs on GitHub's machines with one click; no Colab needed.
 Every input is downloaded fresh; IPUMS microdata stays on the runner and is
 deleted afterwards. Only aggregate outputs are kept.
 
+### Chapter 4 figures and tables (step 06)
+
+Each pipeline run ends with step 06, which turns the saved result files into
+figures and formatted tables in `chapter4/` next to the results:
+`figures/` (PNG at 300 dpi and PDF), `tables/` (CSV, Markdown, LaTeX) and
+`chapter4_tables.xlsx` (every table on its own sheet, for pasting into Word).
+It never touches microdata.
+
+To rebuild them for a run that is already saved, without re-running the
+pipeline (e.g. after changing a figure): Actions tab → **build-chapter4** →
+**Run workflow** (leave the run folder empty for the newest run). Locally:
+`make figures RUN=<path to a run folder copied from the results branch>`.
+
+Every `data/out/results*/` folder is one specification and shows up in the
+tables and comparison figures automatically. To add one (for example an extra
+RQ1 specification), write it with `07_estimate.py --out data/out/results_<name>`
+and give it a readable name in `SPEC_LABELS` in `src/06_figures_tables.py`.
+
 ## Running the pipeline locally or on Colab
 
 ```bash
@@ -93,6 +112,7 @@ make exposure                   # Eloundou human-rated beta → SOC 2018
 make estimate                   # 02 → 03 → 05 → 07, rebuilding only what changed
 make robustness                 # pandemic window dropped
 make robustness-exposure        # GPT-4-rated beta, LM-AIOE
+make figures                    # 06: Chapter 4 figures + tables -> data/out/chapter4/
 ```
 
 Outputs land in `data/out/results/`. To cite results in a chapter, follow

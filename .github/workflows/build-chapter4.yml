@@ -1,0 +1,78 @@
+# Rebuilds step 06 (Chapter 4 figures and formatted tables) for a run already
+# saved on the `results` branch, without re-running the pipeline. It reads only
+# the saved aggregate files in runs/<run>/ (no IPUMS access, no microdata).
+#
+# Start it from the Actions tab: "build-chapter4" -> "Run workflow". Leave the
+# run folder empty for the newest run. The output is saved to
+# runs/<run>/chapter4/ on the `results` branch and as a run artifact.
+# Pushes to the development branch below only build the artifact (a preview),
+# they never write to the `results` branch.
+name: build-chapter4
+
+on:
+  workflow_dispatch:
+    inputs:
+      run:
+        description: "run folder on the results branch, e.g. 2026-09-28_run5_8d9019c (empty = newest)"
+        default: ""
+  push:
+    branches: [claude/project-thread-snm3tj]
+    paths: [.github/workflows/build-chapter4.yml, src/06_figures_tables.py]
+
+permissions:
+  contents: write   # to save the output on the `results` branch
+
+concurrency:
+  group: results-branch
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -q -r requirements.txt
+      - name: Check out the results branch
+        run: |
+          git fetch --depth=1 origin results
+          git worktree add --detach "$RUNNER_TEMP/results" FETCH_HEAD
+      - name: Pick the run folder
+        id: pick
+        run: |
+          run="${{ inputs.run }}"
+          if [ -z "$run" ]; then
+            # newest = latest date, then highest run number
+            run=$(ls "$RUNNER_TEMP/results/runs" | sort -t_ -k1,1 -k2.4n | tail -1)
+          fi
+          [ -d "$RUNNER_TEMP/results/runs/$run" ] || { echo "::error::runs/$run not found on the results branch"; exit 1; }
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "building from runs/$run"
+      - name: 06 figures and Chapter 4 tables
+        env:
+          FIGURES_CODE_SHA: ${{ github.sha }}
+        run: |
+          dir="$RUNNER_TEMP/results/runs/${{ steps.pick.outputs.run }}"
+          rm -rf "$dir/chapter4"
+          python src/06_figures_tables.py --root "$dir" --out "$dir/chapter4"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chapter4-${{ steps.pick.outputs.run }}
+          path: ${{ runner.temp }}/results/runs/${{ steps.pick.outputs.run }}/chapter4/
+          retention-days: 90
+      - name: Save to the results branch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          cd "$RUNNER_TEMP/results"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A "runs/${{ steps.pick.outputs.run }}/chapter4"
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -q -m "Chapter 4 figures and tables for ${{ steps.pick.outputs.run }} (code ${GITHUB_SHA::7})"
+          git push -q origin HEAD:refs/heads/results
+          echo "saved to branch results: runs/${{ steps.pick.outputs.run }}/chapter4/"
