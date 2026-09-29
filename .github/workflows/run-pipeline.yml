@@ -95,6 +95,7 @@ jobs:
       - name: 08 Honest DiD for RQ1 (Models 1 and 3)
         continue-on-error: true
         run: |
+          sudo apt-get install -y -qq libglpk40   # system library the Rglpk binary links to
           Rscript .github/install_honestdid.R
           for d in data/out/results data/out/results_rq1_from_2021q4; do
             Rscript src/08_honest_did.R --results "$d"

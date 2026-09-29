@@ -60,6 +60,14 @@ robust <- createSensitivityResults_relativeMagnitudes(
 original <- constructOriginalCS(betahat = res$estimate, sigma = V, numPrePeriods = n_pre,
                                 numPostPeriods = n_post, l_vec = l_vec, alpha = 0.05)
 
+# HonestDiD reports an empty set (+Inf, -Inf) when no grid point is accepted,
+# which also happens when its LP solver fails; never write that as a result.
+if (any(!is.finite(robust$lb) | !is.finite(robust$ub))) {
+  print(robust)
+  stop("HonestDiD returned non-finite bounds (solver failure or empty set); ",
+       "check the log above")
+}
+
 point <- sum(l_vec * res$estimate[res$period == "post"])
 out <- rbind(
   data.frame(Mbar = NA, lb = original$lb, ub = original$ub, method = "Original"),
