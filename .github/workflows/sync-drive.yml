@@ -13,6 +13,10 @@ on:
       run:
         description: "run folder, e.g. 2026-09-29_run7_8066106 (empty = newest, all = every run)"
         default: ""
+  # A change to the copy code re-copies every run, which also tests it.
+  push:
+    branches: [main, claude/project-thread-snm3tj]
+    paths: [.github/sync_drive.sh, .github/workflows/sync-drive.yml]
 
 permissions:
   contents: read
@@ -39,10 +43,12 @@ jobs:
       - name: Copy to Google Drive
         run: |
           runs="$RUNNER_TEMP/results/runs"
-          case "${{ inputs.run }}" in
+          want="${{ inputs.run }}"
+          [ "${{ github.event_name }}" = push ] && want=all
+          case "$want" in
             "") pick=$(ls "$runs" | sort -t_ -k1,1 -k2.4n | tail -1) ;;
             all) pick=$(ls "$runs") ;;
-            *) pick="${{ inputs.run }}" ;;
+            *) pick="$want" ;;
           esac
           for r in $pick; do
             [ -d "$runs/$r" ] || { echo "::error::runs/$r not found on the results branch"; exit 1; }
