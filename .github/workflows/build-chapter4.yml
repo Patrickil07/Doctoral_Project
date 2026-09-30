@@ -95,3 +95,10 @@ jobs:
           git commit -q -m "Chapter 4 figures and tables for ${{ steps.pick.outputs.run }} (code ${GITHUB_SHA::7})"
           git push -q origin HEAD:refs/heads/results
           echo "saved to branch results: runs/${{ steps.pick.outputs.run }}/chapter4/"
+      - name: Copy the run to Google Drive
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        env:
+          RCLONE_DRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ vars.GDRIVE_FOLDER_ID || '12_f3R1HHxOasFozCCVDC5bv_w3AisX7r' }}
+        run: .github/sync_drive.sh "$RUNNER_TEMP/results/runs/${{ steps.pick.outputs.run }}" "${{ steps.pick.outputs.run }}"

@@ -4,7 +4,9 @@
 # GitHub-hosted machine. Every input is downloaded fresh; IPUMS microdata never
 # leaves the runner. Only aggregate outputs (result tables, sample-construction
 # log, step logs) are kept: as a run artifact (90 days) and, permanently, as a
-# folder runs/<date>_run<N>_<commit>/ on the `results` branch of this repository.
+# folder runs/<date>_run<N>_<commit>/ on the `results` branch of this repository,
+# and a copy of that folder in Google Drive (07_Data/out/pipeline_runs/) when the
+# RCLONE_DRIVE_TOKEN secret is set.
 #
 # Needs the repository secret IPUMS_API_KEY (Settings -> Secrets and variables ->
 # Actions). Start it from the Actions tab: "run-pipeline" -> "Run workflow".
@@ -136,6 +138,7 @@ jobs:
       # Permanent copy: artifacts expire, the `results` branch does not.
       # Same aggregate files as the artifact; no microdata.
       - name: Save results to the results branch
+        id: save
         run: |
           dest="runs/$(date -u +%Y-%m-%d)_run${GITHUB_RUN_NUMBER}_${GITHUB_SHA::7}"
           out="$RUNNER_TEMP/results-branch"
@@ -157,3 +160,14 @@ jobs:
           git commit -q -m "Results of run ${GITHUB_RUN_NUMBER} (commit ${GITHUB_SHA::7})"
           git push -q origin HEAD:refs/heads/results
           echo "saved to branch results: $dest"
+          echo "dir=$out/$dest" >> "$GITHUB_OUTPUT"
+          echo "name=${dest#runs/}" >> "$GITHUB_OUTPUT"
+
+      # Same files again, copied to Google Drive (skipped if the token secret is
+      # not set). A Drive problem never fails a run: the results branch has it all.
+      - name: Copy the run to Google Drive
+        continue-on-error: true
+        env:
+          RCLONE_DRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ vars.GDRIVE_FOLDER_ID || '12_f3R1HHxOasFozCCVDC5bv_w3AisX7r' }}
+        run: .github/sync_drive.sh "${{ steps.save.outputs.dir }}" "${{ steps.save.outputs.name }}"

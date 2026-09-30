@@ -1,0 +1,50 @@
+# Copies saved runs from the `results` branch to Google Drive
+# (07_Data/out/pipeline_runs/<run>/), for runs saved before the Drive copy
+# existed or after a failed copy. run-pipeline and build-chapter4 already copy
+# each new run. Aggregate files only; the results branch holds no microdata.
+#
+# Needs the repository secret RCLONE_DRIVE_TOKEN (see README, "Google Drive copy").
+# Start it from the Actions tab: "sync-drive" -> "Run workflow".
+name: sync-drive
+
+on:
+  workflow_dispatch:
+    inputs:
+      run:
+        description: "run folder, e.g. 2026-09-29_run7_8066106 (empty = newest, all = every run)"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
+    env:
+      RCLONE_DRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
+      GDRIVE_FOLDER_ID: ${{ vars.GDRIVE_FOLDER_ID || '12_f3R1HHxOasFozCCVDC5bv_w3AisX7r' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check secret
+        run: |
+          if [ -z "$RCLONE_DRIVE_TOKEN" ]; then
+            echo "::error::Repository secret RCLONE_DRIVE_TOKEN is not set"; exit 1; fi
+      - name: Check out the results branch
+        run: |
+          git fetch --depth=1 origin results
+          git worktree add --detach "$RUNNER_TEMP/results" FETCH_HEAD
+      - name: Copy to Google Drive
+        run: |
+          runs="$RUNNER_TEMP/results/runs"
+          case "${{ inputs.run }}" in
+            "") pick=$(ls "$runs" | sort -t_ -k1,1 -k2.4n | tail -1) ;;
+            all) pick=$(ls "$runs") ;;
+            *) pick="${{ inputs.run }}" ;;
+          esac
+          for r in $pick; do
+            [ -d "$runs/$r" ] || { echo "::error::runs/$r not found on the results branch"; exit 1; }
+            .github/sync_drive.sh "$runs/$r" "$r"
+          done

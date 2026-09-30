@@ -79,11 +79,35 @@ The whole pipeline runs on GitHub's machines with one click; no Colab needed.
    and `logs/provenance.txt` (commit, run URL, extract number, input checksums).
 4. The same files are saved permanently on the `results` branch, one folder
    per run: `runs/<date>_run<N>_<commit>/`. The run artifact expires after 90
-   days; the branch copy does not. Each run's folder is also copied to Drive
-   `07_Data/results/`.
+   days; the branch copy does not. Each run's folder is also copied to Google
+   Drive, `07_Data/out/pipeline_runs/<run>/`, once the Drive token below is set.
 
 Every input is downloaded fresh; IPUMS microdata stays on the runner and is
 deleted afterwards. Only aggregate outputs are kept.
+
+### Google Drive copy
+
+Every run folder (aggregate results, logs, `chapter4/`; never microdata) is
+copied to `07_Data/out/pipeline_runs/<run>/` in Google Drive by
+`.github/sync_drive.sh`, and each file is checked against the original (size
+and MD5). run-pipeline copies each new run, build-chapter4 re-copies a run
+after rebuilding it, and **sync-drive** copies saved runs on demand (a run
+name, empty for the newest, or `all`). A Drive problem never fails a run.
+
+One-time setup (on your own computer, not Colab, because it opens a browser):
+
+1. Install rclone (<https://rclone.org/downloads/>).
+2. Run `rclone authorize "drive"`, sign in with the Google account that owns
+   the Drive folder and allow access. rclone prints a token: the text starting
+   with `{"access_token"` and ending with `}`.
+3. Add it as the repository secret `RCLONE_DRIVE_TOKEN` (Settings → Secrets and
+   variables → Actions → New repository secret).
+4. Actions tab → **sync-drive** → **Run workflow** with `all` to copy the runs
+   saved so far.
+
+The target is the `pipeline_runs` folder; to use another one, set the
+repository variable `GDRIVE_FOLDER_ID` to that folder's id (the last part of
+its Drive URL).
 
 ### RQ1 specification menu
 
