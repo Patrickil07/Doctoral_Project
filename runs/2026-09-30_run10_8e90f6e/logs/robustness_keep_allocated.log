@@ -1,0 +1,56 @@
+/opt/hostedtoolcache/Python/3.11.16/x64/lib/python3.11/site-packages/ipumspy/readers.py:70: CitationWarning: Use of data from IPUMS is subject to conditions including that users should cite the data appropriately.
+See the `ipums_conditions` attribute of this codebook for terms of use.
+See the `ipums_citation` attribute of this codebook for the appropriate citation.
+  warnings.warn(
+[sample] SOC major groups ['13', '15', '17', '19', '23', '27', '43']: 189 Census codes
+[sample] reading cps_00004.dat in chunks of 500,000
+[ddi] EARNWEEK2: Weekly earnings (rounded)
+[ddi]   EARNWEEK2 reports how much the respondent usually earned per week at their current job, before deductions, rounded to preserve privacy. In April 2023, the Census Bureau began rounding weekly earnings as a privacy protection measure. EARNWEEK2 imposes these rounding criteria on pre-April 2023 data (including the 2023 ASEC) to provide users with comparable weekly earnings over time. See the Census Bureau's user note for more information on the new privacy protection measures. EARNWEEK reports un-rounded weekly earnings for pre-April 2023 data (including the 2023 ASEC) only. Note that rounding of earnings is part of a set of changes made to preserve respondent privacy that began to be phased in with the MISH group in January of 2023. April of 2023 is the first month in which this MISH group is asked earnings questions. Because of Census Bureau's phased approach to introducing these privacy protection measures, only MISH 4 groups in April 2023 - March of 2024 Basic Monthly samples are rounded and topcoded by the Census Bureau. In these months, IPUMS applies the new rounding rules to the MISH 8 group so that all records have comparable values within months. Users wishing to access a variable in which MISH 4 is rounded and MISH 8 remains unrounded should use UH_ERNWK_B5. Respondents reporting earnings between $0.01 and $7 have weekly earnings set at $4. Those who report $7.01-$1,199.00 have their weekly earnings values rounded to the nearest $2. Weekly earnings between $1,199.01 an
+[ddi] EARNWEEK: Weekly earnings
+[ddi]   EARNWEEK reports how much the respondent usually earned per week at their current job, before deductions. Interviewers asked directly about total weekly earnings and also collected information about the usual number of hours worked per week and the hourly rate of pay at the current job. The figure given in EARNWEEK is the higher of the values derived from these two sources: 1) the respondent's answer to the question, "How much do you usually earn per week at this job before deductions?" or 2) for workers paid by the hour (and coded as "2" in PAIDHOUR), the reported number of hours the respondent usually worked at the job, multiplied by the hourly wage rate given in HOURWAGE. Amounts are expressed as they were reported to the interviewer; users must adjust for inflation using Consumer Price Index adjustment factors or use the Adjust Monetary Values tool. Inflation-adjusted versions created with the Adjust Monetary Values tool will use the survey year (i.e., YEAR) as the reference year. EARNWEEK is one of the Outgoing Rotation/Earner Study questions. Researchers should use the EARNWT weight with this variable.
+[ddi] UHRSWORKORG: Usual hours worked per week, outgoing rotation groups
+[ddi]   UHRSWORKORG reports the total number of hours the respondent who is paid hourly usually works per week at their main job. UHRSWORKORG is one of the earner study/outgoing rotation group questions. Private wage or salaried workers are asked the periodicity for which they are paid. Workers who are paid by the hour, excluding those who are self-employed, are asked the hourly wage, and then are asked how many hours they usually work per week at that rate. Researchers should use the EARNWT weight with this variable. Researchers should note that PAIDHOUR, which identifies workers paid hourly, is more inclusive than the universe for UHRSWORKORG. This stems from the fact that PAIDHOUR is the combination of two variables that assess hourly work status. The first establishes periodicity of pay, and the second asks if an hourly rate can be given instead if respondents did not report hourly pay. Only those who reported an hourly pay status in the first question are in universe for UHRSWORKORG. UHRSWORKORG differs from UHRSWORKLY because the period of reference for UHRSWORKLY is the preceding year, whereas UHRSWORKORG refers to the current usual number of hours worked per week. Additionally, UHRSWORKORG differs from UHRSWORK1 in that UHRSWORK1 does not have the qualifier "at this rate" in the question. Note that for basic samples 1982-1988 and ASECs 1982-1987, the outgoing rotation usual hours question wording matches that of UHRSWORK1. Thus this variable is included in UHRSWORK1 for those
+[ddi] WTFINL: Final Basic Weight
+[ddi]   WTFINL is the final person-level weight that should be used in analyses of basic monthly data. When analyzing ASEC data, researchers should use the person weight ASECWT. For analyses including the variables EARNWEEK, HOURWAGE, PAIDHOUR, and UNION, researchers should use the EARNWT variable. WTFINL is the second stage weight in CPS (see technical documentation). It is based on the inverse probability of selection into the sample and adjustments for the following factors: failure to obtain an interview; sampling within large sample units; adjustments to the known distribution of the entire population according to stage, age, sex, race, and Hispanic ethnicity; and allotting a weight of zero to populations not sampled in other monthly surveys (i.e., persons in the Hispanic oversample and members of the armed forces in ASEC samples).
+[ddi] EARNWT: Earnings weight
+[ddi]   EARNWT is a person-level weight that should be used in any analysis including one of the following variables: EARNWEEK, HOURWAGE, PAIDHOUR, UNION, UHRSWORKORG, WKSWORKORG, ELIGORG, and OTPAY. For any other analysis using ASEC data, researchers should use ASECWT or for analyses of non-ASEC data, WTFINL. Individuals in the 6 rotation groups that were not asked the "earner study" questions (covering EARNWEEK, HOURWAGE, PAIDHOUR, UNION, UHRSWORKORG, WKSWORKORG, ELIGORG, and OTPAY) have a value of zero for EARNWT. Even in the 2 rotation groups where "earner study" questions were fielded, members of the armed forces have a value of zero for EARNWT. According to Technical Paper 66 , issued jointly by the Census Bureau and the Bureau of Labor Statistics, individuals eligible for the earner study are civilians age 15 and older in rotation groups 4 or 8 who are not self-employed. In the data itself, this is true in all samples up to and including those in 1997. From 1998 to 2010, only individuals age 16 and older in rotation groups 4 or 8, and are not self-employed, are in universe for this variable. This universe also applies to basic monthly samples after 2010. In ASEC samples after 2010, the data reflect the published universe. In any given month, approximately 1/4 of the CPS sample is in the earner study and each household should appear in the earner study exactly twice. Based on documentation from Unicon and NBER, and after an inspection of the original CPS data, we recommend that
+[ddi] QEARNWEE: Data quality flag for EARNWEEK
+[ddi]   Data quality flag for EARNWEEK.
+[ddi]   codes: {'Not allocated': 0, 'Allocated': 4}
+[ddi] QUHRSWORKORG: Data quality flag for UHRSWORKORG
+[ddi]   Data quality flag for UHRSWORKORG.
+[ddi]   codes: {'No change / not allocated': 0, 'Value to blank': 1, 'Blank to value': 2, 'Value to value': 3, 'Allocated': 4, 'Do not know to blank': 5, 'Do not know to value': 6, 'Refused to value': 7, 'Refused to blank': 8}
+[sample] 58,116 records in 11 knowledge-intensive Census codes without task or exposure measures (dropped): {1021: 27169, 705: 12462, 5940: 8497, 845: 4833, 5165: 1885, 5420: 1399, 2180: 1179, 2865: 356, 2770: 190, 2755: 75, 5040: 71}
+[sample] QEARNWEE values: {0: 79814, 4: 37452}
+[sample] share of earnings allocated (imputed) by quarter: 2020Q1 32.3%, 2020Q2 32.8%, 2020Q3 33.0%, 2020Q4 34.7%, 2021Q1 31.5%, 2021Q2 34.7%, 2021Q3 36.5%, 2021Q4 36.6%, 2022Q1 30.3%, 2022Q2 32.4%, 2022Q3 33.0%, 2022Q4 34.2%, 2023Q1 29.0%, 2023Q2 32.3%, 2023Q3 32.8%, 2023Q4 32.1%, 2024Q1 27.8%, 2024Q2 29.1%, 2024Q3 31.1%, 2024Q4 30.6%, 2025Q1 27.3%, 2025Q2 29.4%, 2025Q3 30.8%, 2025Q4 30.4%
+[sample] common real top-code $2,270.54 (2019 dollars); share at or above it by quarter: 2020Q1 2.1%, 2020Q2 1.5%, 2020Q3 1.4%, 2020Q4 1.5%, 2021Q1 1.7%, 2021Q2 1.4%, 2021Q3 1.8%, 2021Q4 1.2%, 2022Q1 1.4%, 2022Q2 0.9%, 2022Q3 1.4%, 2022Q4 1.2%, 2023Q1 1.9%, 2023Q2 1.0%, 2023Q3 0.9%, 2023Q4 1.5%, 2024Q1 1.3%, 2024Q2 1.9%, 2024Q3 2.1%, 2024Q4 1.9%, 2025Q1 1.8%, 2025Q2 1.1%, 2025Q3 1.4%, 2025Q4 3.3%
+
+[sample] SAMPLE CONSTRUCTION LOG (paste into Table 4.1; person-month records):
+    raw person-month records                                  7,200,731
+    2020-01 onwards (2018 Census occupation codes)            7,200,731
+    basic monthly records (no ASEC)                           7,200,731
+    wage/salary workers                                       3,206,011
+    employed                                                  3,007,177
+    knowledge-intensive SOC groups                              818,114
+    in 22-30 or 35-55 age bands                                 520,141
+    with task and exposure measures (RQ2 employment sample)     462,025
+    in ORG earner universe                                      117,398
+    valid weekly earnings                                       117,266
+    full-time (usual hours 35+)                                  30,231
+    earnings sample (RQ1, RQ3, RQ4)                              30,231
+
+[sample] early-career: 10,266 | experienced: 19,965
+[sample] written to data/out/analysis_sample_keep_allocated.parquet and data/out/analysis_sample_keep_allocated_employment.parquet
+[est] RQ1 — task composition of employment held (Eq. 5)
+      pre-trend check: {'n_pre': 10, 'max_abs_z': 1.496559030012909, 'any_sig_5pct': False, 'wald_chi2': 15.80465728846653, 'wald_df': 10, 'wald_p': 0.10536252163130977}
+[est] RQ2 — early-career employment share (Eq. 6)
+      RQ2 cells: 86,389 occupation x state x quarter cells from 462,025 records (weight WTFINL); median 3 records per cell
+      RQ2 specification: state-by-quarter FE
+[est] RQ3 — hedonic implicit task prices (Eq. 7)
+      psi_3 (H3 focal) = +0.0740 (se 0.1737, p=0.6701)
+[est] RQ4 — earnings levels, unconditional vs conditional
+      composition vs price decomposition written
+
+[est] all results -> data/out/results_keep_allocated
+[est] paste these into Chapter 4 tables, replacing [pending] cells.
+[est] run again with --drop-pandemic for the Section 3.6 robustness row.

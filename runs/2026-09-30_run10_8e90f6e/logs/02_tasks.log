@@ -1,0 +1,9 @@
+[task] part score = mean of GWA IM ratings; GWAs per part: [12, 13, 8, 8]
+[task] zero part scores: 0 (zero replacement not used; --delta has no effect)
+[task] 873 O*NET-SOC occupations written to data/interim/task_composition.csv
+[task] composition means:
+c1_nonroutine_analytic         0.2839
+c2_nonroutine_interpersonal    0.2391
+c3_routine_cognitive           0.2710
+c4_residual                    0.2060
+[task] z3 (analytic:routine balance) mean=0.0345 sd=0.0576

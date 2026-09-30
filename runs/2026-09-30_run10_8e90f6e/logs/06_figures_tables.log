@@ -1,0 +1,26 @@
+[06] specifications: results (Main specification), results_drop_pandemic (Pandemic window dropped), results_exposure_gpt4beta (GPT-4-rated exposure), results_exposure_lmaioe (LM-AIOE exposure), results_rq1_trend (RQ1 Model 2: linear trend), results_rq1_from_2021q4 (RQ1 Model 3: from 2021Q4), results_no_soc43 (Without SOC 43), results_add_soc11_25_29 (Adding SOC 11, 25, 29), results_midband (Ages 31-34 included), results_bands_22_28_40_55 (Bands 22-28 vs 40-55), results_keep_allocated (Allocated earnings kept), results_drop_topcoded (Top-coded earnings dropped), results_hourly_all_hours (Hourly earnings, all hours), results_tasks_onet30 (O*NET 30.3 task measures), results_tasks_sum (Summed-importance task shares), results_mapping_alt (Alternative GWA mapping)
+[06] table  table_4_1_sample
+[06] figure fig_exposure_distribution
+[06] figure fig_task_composition_by_tercile
+[06] table  table_4_2_descriptives
+[06] figure fig_rq1_event_study
+[06] figure fig_rq1_event_study_by_spec
+[06] table  table_rq1_event_study
+[06] figure fig_rq2_event_study
+[06] figure fig_rq2_event_study_by_spec
+[06] table  table_rq2_event_study
+[06] figure fig_rq4_uncond_event_study_by_spec
+[06] table  table_rq4_uncond_event_study
+[06] figure fig_rq4_cond_event_study_by_spec
+[06] table  table_rq4_cond_event_study
+[06] table  table_pooled_contrasts
+[06] figure fig_rq1_honest_did_main
+[06] figure fig_rq1_honest_did_rq1_from_2021q4
+[06] table  table_rq1_honest_did
+[06] figure fig_rq4_earnings
+[06] table  table_rq4_decomposition
+[06] table  table_pretrends
+[06] table  table_rq3_psi_by_spec
+[06] figure fig_rq3_task_prices
+[06] table  table_rq3_hedonic
+[06] workbook chapter4_tables.xlsx

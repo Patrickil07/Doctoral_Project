@@ -1,0 +1,16 @@
+step,records,dropped
+raw person-month records,7200731,
+2020-01 onwards (2018 Census occupation codes),7200731,0
+basic monthly records (no ASEC),7200731,0
+wage/salary workers,3206011,3994720
+employed,3007177,198834
+knowledge-intensive SOC groups,818114,2189063
+in 22-30 or 35-55 age bands,520141,297973
+with task and exposure measures (RQ2 employment sample),462025,58116
+in ORG earner universe,117398,344627
+valid weekly earnings,117266,132
+non-allocated earnings (Hirsch-Schumacher),79814,37452
+full-time (usual hours 35+),18412,61402
+"earnings sample (RQ1, RQ3, RQ4)",18412,0
+  of which early-career (22-30),6529,
+  of which experienced (35-55),11883,
