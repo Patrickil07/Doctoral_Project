@@ -71,12 +71,14 @@ data/
   allocation flags as variable names (the 27 September 2026 probe of 30 names
   such as `QEARNWEE` failed for that reason), but it delivers them through the
   data-quality-flags option of each variable. Step 04 requests that option for
-  EARNWEEK, EARNWEEK2 and UHRSWORKORG; step 05 drops records whose earnings
+  EARNWEEK, EARNWEEK2 and UHRSWORK1; step 05 drops records whose earnings
   were allocated, logs the allocated share by quarter, and
   `results_keep_allocated` keeps them for comparison.
 - **Hours.** Weekly earnings mix pay rates with hours, so the main earnings
-  sample is full-time workers (usual weekly hours UHRSWORKORG 35-99; "hours
-  vary" is excluded). `results_hourly_all_hours` keeps everyone with reported
+  sample is full-time workers (usual weekly hours at the main job, UHRSWORK1,
+  35 or more; "hours vary" is excluded). UHRSWORKORG is not usable for this:
+  its universe is hourly-paid workers only (run 10 kept 18,412 of 79,814
+  records with it). `results_hourly_all_hours` keeps everyone with reported
   hours and uses log real hourly earnings.
 - **Top-codes.** Real weekly earnings are censored at one common real cap (the
   lowest 2019-dollar value of the $2,884.61 nominal top-code over the sample
@@ -136,7 +138,8 @@ dissertation be added to the IPUMS bibliography (http://bibliography.ipums.org/)
 
 | Extract | Months | Variables | Status |
 |---|---|---|---|
-| #4 (`cps_00004`) | 71: January 2020 – December 2025 except October 2025; no ASEC | as #3 plus UHRSWORKORG and WTFINL, with IPUMS data-quality flags for EARNWEEK, EARNWEEK2 and UHRSWORKORG | **used from run 9** (requested by the pipeline on 30 Sep 2026) |
+| #5 | same 71 months | as #3 plus UHRSWORK1 and WTFINL, with IPUMS data-quality flags for EARNWEEK, EARNWEEK2 and UHRSWORK1 | **used from run 11** (requested by the pipeline on 30 Sep 2026) |
+| #4 (`cps_00004`) | same 71 months | as #3 plus UHRSWORKORG (hourly-paid workers only) and WTFINL, with data-quality flags | run 10 only; superseded by #5 |
 | #3 (`cps_00003`) | 71: January 2020 – December 2025 except October 2025; no ASEC | YEAR, MONTH, EARNWT, STATEFIP, AGE, SEX, EDUC, EMPSTAT, CLASSWKR, IND, OCC, EARNWEEK, EARNWEEK2 (+ IPUMS preselected identifiers and weights) | used in runs 5-8 (`07_Data/raw/ipums/`) |
 | #2 (`cps_00002`) | same 71 months, same variables | same | duplicate of #3; not used |
 | #1 (`cps_00001`) | 20 months only | 13 variables | incomplete; archived, not used |

@@ -17,7 +17,7 @@ on:
     inputs:
       extract_id:
         description: "IPUMS CPS extract number (re-submitted automatically if expired); empty = request a new extract"
-        default: "4"
+        default: ""
 
 permissions:
   contents: write   # to save results on the `results` branch
@@ -70,7 +70,7 @@ jobs:
           fi 2>&1 | tee logs/04_ipums.log
 
       - name: 02 task composition
-        run: python src/02_build_task_composition.py --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 | tee logs/02_tasks.log
+        run: python src/02_build_task_composition.py --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 --fill-from data/raw/onet_30_3 | tee logs/02_tasks.log
       - name: 03 crosswalk to CPS occupations
         run: python src/03_crosswalk.py | tee logs/03_crosswalk.log
       - name: 05 estimation sample
@@ -135,8 +135,8 @@ jobs:
             rm -f "data/out/analysis_sample_$name.parquet" "data/out/analysis_sample_${name}_employment.parquet"
           }
           measure tasks_onet30 --onet data/raw/onet_30_3
-          measure tasks_sum --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 --aggregate sum
-          measure mapping_alt --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 --map mapping/onet_activity_map_alt.csv
+          measure tasks_sum --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 --fill-from data/raw/onet_30_3 --aggregate sum
+          measure mapping_alt --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 --fill-from data/raw/onet_30_3 --map mapping/onet_activity_map_alt.csv
         shell: bash -eo pipefail {0}
 
       - name: RQ1 Model 2 - linear exposure x early-career trend

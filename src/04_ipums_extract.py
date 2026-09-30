@@ -31,7 +31,7 @@ VARS = [
     "STATEFIP", "AGE", "SEX", "EDUC",             # controls, age bands, state FE
     "EMPSTAT", "CLASSWKR", "IND", "OCC",          # sample rules, industry FE, merge key
     "EARNWEEK", "EARNWEEK2",                      # weekly earnings
-    "UHRSWORKORG",                                # usual weekly hours (ORG): full-time rule
+    "UHRSWORK1",                                  # usual weekly hours, main job (all employed)
     "WTFINL",                                     # final person weight (RQ2, all rotation groups)
 ]
 # Requested if IPUMS accepts the name; dropped with a warning if it does not.
@@ -39,7 +39,7 @@ OPTIONAL_VARS: list[str] = []
 # IPUMS does not accept allocation flags as variable names (QEARNWEE was
 # rejected as "Invalid mnemonic"): they come with the data-quality-flags option
 # of each variable. Step 05 drops records whose earnings were allocated.
-FLAGGED_VARS = ["EARNWEEK", "EARNWEEK2", "UHRSWORKORG"]
+FLAGGED_VARS = ["EARNWEEK", "EARNWEEK2", "UHRSWORK1"]
 
 
 def month_samples(start: str, end: str) -> list[str]:

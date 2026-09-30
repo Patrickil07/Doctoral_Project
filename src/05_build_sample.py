@@ -18,9 +18,11 @@ Rules (proposal, Chapter 3):
     the earlier months too, so the series is comparable over time
   * allocated (imputed) earnings EXCLUDED — Hirsch & Schumacher (2004) match
     bias — using the IPUMS data-quality flag (restorable via --keep-allocated)
-  * full-time workers (usual weekly hours UHRSWORKORG 35-99) so that weekly
-    earnings compare pay, not hours; --hours all keeps everyone with reported
-    hours and uses ln(weekly earnings / usual hours)
+  * full-time workers (usual weekly hours at the main job, UHRSWORK1, 35 or
+    more; "hours vary" excluded) so that weekly earnings compare pay, not
+    hours; --hours all keeps everyone with reported hours and uses
+    ln(weekly earnings / usual hours). (UHRSWORKORG is NOT used: its universe
+    is hourly-paid workers only.)
   * top-codes: the nominal $2,884.61 cap was fixed until 2023-24 and replaced
     by monthly values afterwards. All real earnings are censored at ONE real
     cap, the lowest real value of $2,884.61 in the sample period, so the cap
@@ -50,7 +52,10 @@ import pandas as pd
 KNOWLEDGE_MAJOR = {"13", "15", "17", "19", "23", "27", "43"}
 # Nominal weekly-earnings top-code while it was fixed (IPUMS CPS, EARNWEEK2).
 TOPCODE_NOMINAL = 2884.61
-POST_START = "2022-10-01"          # 2022Q4, the first event-study post quarter
+POST_START = "2022-10-01"
+# Usual weekly hours at the main job; 997 = hours vary, 999 = not in universe.
+HOURS_VAR = "UHRSWORK1"
+HOURS_MAX = 198          # 2022Q4, the first event-study post quarter
 # First CPS month coded with the 2018 Census occupation classification.
 SAMPLE_START = "2020-01"
 # "Not in universe" codes from the IPUMS CPS codebook (Version 13.0).
@@ -237,7 +242,7 @@ def main() -> int:
               "basic monthly records (no ASEC)", "wage/salary workers", "employed",
               "knowledge-intensive SOC groups"]
     log = list(zip(labels, counts))
-    describe_variables(ddi, ["EARNWEEK2", "EARNWEEK", "UHRSWORKORG", "WTFINL", "EARNWT"]
+    describe_variables(ddi, ["EARNWEEK2", "EARNWEEK", HOURS_VAR, "WTFINL", "EARNWT"]
                        + [c for c in df.columns if c.startswith("Q")])
 
     # --- seniority bands -----------------------------------------------------
@@ -306,15 +311,20 @@ def main() -> int:
         print("[sample] WARNING: no earnings allocation flag in the extract (request it "
               "with data quality flags, step 04); imputed earnings are NOT excluded")
 
-    hours = pd.to_numeric(df.get("UHRSWORKORG"), errors="coerce") if "UHRSWORKORG" in df else None
-    if hours is None:
-        print("[sample] WARNING: UHRSWORKORG not in the extract; no hours restriction")
-    elif args.hours == "fulltime":
-        df = df[hours.loc[df.index].between(35, 99)]
-        log.append(("full-time (usual hours 35+)", len(df)))
+    hvar = HOURS_VAR if HOURS_VAR in df.columns else None
+    if hvar is None:
+        print(f"[sample] WARNING: {HOURS_VAR} not in the extract; no hours restriction")
     else:
-        df = df[hours.loc[df.index].between(1, 99)]
-        log.append(("usual hours reported (1-99)", len(df)))
+        h = pd.to_numeric(df[hvar], errors="coerce")
+        print(f"[sample] {hvar}: {h.between(1, HOURS_MAX).mean():.1%} report usual hours, "
+              f"{(h == 997).mean():.1%} 'hours vary', {h.between(35, HOURS_MAX).mean():.1%} "
+              "full-time (35+)")
+        if args.hours == "fulltime":
+            df = df[h.between(35, HOURS_MAX)]
+            log.append(("full-time (usual hours 35+)", len(df)))
+        else:
+            df = df[h.between(1, HOURS_MAX)]
+            log.append(("usual hours reported", len(df)))
 
     cpi = pd.read_csv(args.cpi)
     cpi.columns = [c.lower() for c in cpi.columns]
@@ -335,8 +345,8 @@ def main() -> int:
         df = df[df["is_topcoded"] == 0]
         log.append(("below the common real top-code", len(df)))
     df["real_earnweek"] = df["real_earnweek"].clip(upper=cap)
-    if args.hours == "all" and "UHRSWORKORG" in df:
-        df["ln_w"] = np.log(df["real_earnweek"] / pd.to_numeric(df["UHRSWORKORG"]))
+    if args.hours == "all" and hvar:
+        df["ln_w"] = np.log(df["real_earnweek"] / pd.to_numeric(df[hvar]))
         print("[sample] outcome ln_w = log real HOURLY earnings (weekly / usual hours)")
     else:
         df["ln_w"] = np.log(df["real_earnweek"])

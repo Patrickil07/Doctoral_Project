@@ -152,8 +152,24 @@ def test_step02_matches_an_older_release_by_element_id(tmp_path):
     assert r.returncode == 0, r.stderr
     assert "Interacting With Computers" in r.stdout
     r2 = _run("02_build_task_composition.py", "--onet", str(ref), "--out", str(tmp_path / "c.csv"))
-    pd.testing.assert_frame_equal(pd.read_csv(tmp_path / "b.csv").drop(columns="onet_release_dir"),
-                                  pd.read_csv(tmp_path / "c.csv").drop(columns="onet_release_dir"))
+    drop = ["onet_release_dir", "task_release"]
+    pd.testing.assert_frame_equal(pd.read_csv(tmp_path / "b.csv").drop(columns=drop),
+                                  pd.read_csv(tmp_path / "c.csv").drop(columns=drop))
+
+
+def test_step02_fills_unrated_occupations_from_a_later_release(tmp_path):
+    names = pd.read_csv(MAP)["element_name"].tolist()
+    later = _fake_onet(tmp_path, names)                      # rates 15-1252 and 43-9061
+    early = tmp_path / "early"
+    early.mkdir()
+    wa = pd.read_csv(later / "Work Activities.txt", sep="\t")
+    wa[wa["O*NET-SOC Code"] != "15-1252.00"].to_csv(early / "Work Activities.txt", sep="\t",
+                                                     index=False)
+    r = _run("02_build_task_composition.py", "--onet", str(early), "--fill-from", str(later),
+             "--out", str(tmp_path / "f.csv"))
+    assert r.returncode == 0, r.stderr
+    out = pd.read_csv(tmp_path / "f.csv").set_index("soc2018")
+    assert out.loc["15-1252", "task_filled"] == 1 and out.loc["43-9061", "task_filled"] == 0
 
 
 def test_step02_fails_loudly_on_unknown_mapping_entry(tmp_path):

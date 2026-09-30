@@ -23,6 +23,12 @@ releases name some GWAs differently, so for any other release pass the 30.3
 folder here: mapping names are translated to O*NET Element IDs (stable across
 releases) in 30.3 and matched on Element ID in the release being built.
 
+Unrated occupations (--fill-from). O*NET 27.0 has no ratings yet for some
+occupations new in the 2019 O*NET-SOC taxonomy, among them 15-1252 Software
+Developers (CPS code 1021, about 6% of the knowledge-intensive records).
+--fill-from takes their ratings from a later release; the column task_release
+records which release each occupation's measures come from.
+
 Fails loudly if any element name in the mapping file is absent from the
 downloaded O*NET release, so a silent partial mapping can never occur.
 
@@ -128,6 +134,9 @@ def main() -> int:
                     help="IM = Importance (default), LV = Level")
     ap.add_argument("--aggregate", default="mean", choices=["mean", "sum"],
                     help="mean (default) or sum of GWA ratings within each part")
+    ap.add_argument("--fill-from", default=None,
+                    help="O*NET release folder whose ratings are used for 6-digit SOCs the "
+                         "main release does not rate (flagged in column task_release)")
     ap.add_argument("--id-reference", default=None,
                     help="O*NET release folder whose GWA names the mapping uses; "
                          "match the target release on Element ID through it")
@@ -172,6 +181,22 @@ def main() -> int:
             if isinstance(new, str) and norm(pd.Series([new]))[0] != norm(pd.Series([old]))[0]:
                 print(f"[task] matched by Element ID: '{old}' is '{new}' in this release")
 
+    wa["task_release"] = str(onet_dir)
+    if args.fill_from:
+        fill = read_work_activities(pathlib.Path(args.fill_from))
+        if fill is None:
+            return 1
+        fill = fill[fill["Scale ID"].str.strip() == args.scale].dropna(subset=["Data Value"])
+        fill["key"] = (fill["Element ID"].str.strip() if args.id_reference
+                       else norm(fill["Element Name"]))
+        have = set(wa["O*NET-SOC Code"].str.slice(0, 7))
+        add = fill[~fill["O*NET-SOC Code"].str.slice(0, 7).isin(have)].copy()
+        add["task_release"] = str(args.fill_from)
+        socs = sorted(add["O*NET-SOC Code"].unique())
+        print(f"[task] {len(socs)} O*NET-SOC occupations have no ratings in {onet_dir} and "
+              f"take them from {args.fill_from} (column task_release): {socs}")
+        wa = pd.concat([wa, add], ignore_index=True)
+
     onet_keys = set(wa["key"])
     map_keys = set(mp["key"])
 
@@ -213,6 +238,9 @@ def main() -> int:
     out = pd.DataFrame(C, columns=PARTS, index=agg.index)
     out[["z1", "z2", "z3"]] = Z
     out["ln_T"] = np.log(T.to_numpy())
+    out["task_release"] = wa.drop_duplicates("O*NET-SOC Code").set_index(
+        "O*NET-SOC Code")["task_release"].reindex(agg.index).to_numpy()
+    out["task_filled"] = (out["task_release"] != str(onet_dir)).astype(int)
     out["onet_soc"] = out.index
     out["soc2018"] = out["onet_soc"].str.slice(0, 7)  # 12-3456 detailed SOC
     out["onet_release_dir"] = str(onet_dir)

@@ -265,6 +265,10 @@ def aggregate_to_cps(df: pd.DataFrame) -> pd.DataFrame:
     def one(g: pd.DataFrame) -> pd.Series:
         emp = (g["emp"] * g.get("share", 1.0)).to_numpy(dtype=float)
         vals = {c: _wavg(g[c].to_numpy(dtype=float), emp) for c in PARTS + ["ln_T"]}
+        if "task_filled" in g:
+            # share of the code's employment whose task measures come from the
+            # --fill-from release (step 02)
+            vals["task_filled_share"] = _wavg(g["task_filled"].to_numpy(dtype=float), emp)
         has = g["exposure"].notna().to_numpy()
         vals["exposure"] = (_wavg(g["exposure"].to_numpy(dtype=float)[has], emp[has])
                             if has.any() else np.nan)
@@ -311,7 +315,9 @@ def main() -> int:
 
     tasks = pd.read_csv(args.tasks)
     # collapse O*NET-SOC detail (e.g. 15-1252.01) to detailed SOC (15-1252)
-    tasks = collapse_onet_soc(tasks, PARTS + ["ln_T"])
+    if "task_filled" not in tasks.columns:
+        tasks["task_filled"] = 0
+    tasks = collapse_onet_soc(tasks, PARTS + ["ln_T", "task_filled"])
 
     exposure = pd.read_csv(args.exposure, dtype={"soc2018": str})
     if "exposure" not in exposure.columns:
