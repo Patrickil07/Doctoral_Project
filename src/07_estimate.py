@@ -1,5 +1,5 @@
 """
-07_estimate.py — estimate RQ1-RQ4 exactly as specified in proposal Section 6.5.
+07_estimate.py — estimate RQ1-RQ4 (Eqs. 5-7 of the proposal methods chapter).
 
 Equations:
   (5) RQ1  z3(k) = a E_k + b (E_k x J_i) + sum_q beta_q (E_k x 1[t=q])
@@ -17,8 +17,15 @@ these (and industry in RQ3) are absorbed by weighted within-group demeaning
 (alternating projections), which gives the same coefficients as including the
 dummies without building a design matrix with >1,000 columns.
 
-Inference: weighted by EARNWT, standard errors clustered on occupation
-(exposure varies at that level). Reference quarter 2022Q3.
+Controls: SEX and AGE enter linearly; education enters as fixed effects (IPUMS
+EDUC codes are categories, not years), absorbed like the other fixed effects.
+
+Inference: RQ1, RQ3 and RQ4 weighted by EARNWT on the ORG earnings sample;
+RQ2 weighted by WTFINL on all employed records of every rotation group (step
+05's employment sample). Standard errors clustered on occupation (exposure
+varies at that level); p-values use the normal distribution and the joint
+tests chi-squared, adequate with about 180 clusters. Reference quarter 2022Q3;
+post = 2022Q4 onwards in every equation.
 
 RQ1 specification menu (see README):
   Model 1  baseline event study (default run).
@@ -138,10 +145,11 @@ def event_study(df: pd.DataFrame, outcome: str, with_tasks: bool,
     # rho (J_i x tau_t): early-career x quarter effects absorb economy-wide shifts
     # in the early-career gap; the early_career main effect is nested in them.
     d["early_quarter"] = d["early_career"].astype(int).astype(str) + "_" + d["quarter"].astype(str)
-    regs = names + ["SEX", "AGE", "EDUC"]
+    regs = names + ["SEX", "AGE"]
     if with_tasks:
         regs += ["z1", "z2", "z3", "ln_T"]
-    b, se, p, V = _fit_absorbed(d, outcome, regs, ["state_quarter", "early_quarter"], cluster)
+    b, se, p, V = _fit_absorbed(d, outcome, regs, ["state_quarter", "early_quarter", "EDUC"],
+                                cluster)
     keep = [r for r in regs if r.startswith("expJq_")]
     out = pd.DataFrame({"term": keep, "estimate": b[keep].to_numpy(),
                         "se": se[keep].to_numpy(), "pvalue": p[keep].to_numpy()})
@@ -202,21 +210,27 @@ def hedonic(df: pd.DataFrame) -> pd.DataFrame:
         d[f"{z}:post"] = d[z] * d["post"]
     regs += [f"{z}:post" for z in ("z1", "z2", "z3", "ln_T")]
     d["early_career:post"] = d["early_career"] * d["post"]
-    regs += ["early_career:post", "early_career", "SEX", "AGE", "EDUC"]
-    b, se, p, _ = _fit_absorbed(d, "ln_w", regs, ["state_quarter", "IND"], "OCC")
+    regs += ["early_career:post", "early_career", "SEX", "AGE"]
+    b, se, p, _ = _fit_absorbed(d, "ln_w", regs, ["state_quarter", "IND", "EDUC"], "OCC")
     keep = [r for r in regs if r.startswith(("z1", "z2", "z3", "ln_T"))
             or "early_career:post" in r]
     return pd.DataFrame({"term": keep, "estimate": b[keep].to_numpy(),
                          "se": se[keep].to_numpy(), "pvalue": p[keep].to_numpy()})
 
 
-def early_share(df: pd.DataFrame, return_vcov: bool = False):
-    cell = (df.groupby(["OCC", "STATEFIP", "quarter"])
-              .apply(lambda g: pd.Series({
-                  "early_share": np.average(g["early_career"], weights=g["EARNWT"]),
-                  "exposure": g["exposure"].iloc[0],
-                  "n": len(g), "w": g["EARNWT"].sum()}), include_groups=False)
+def early_share(df: pd.DataFrame, return_vcov: bool = False, weight: str = "EARNWT"):
+    """Eq. 6 on occupation x state x quarter cells. `df` is step 05's employment
+    sample (all rotation groups, weight WTFINL) when available."""
+    g = df.assign(_w=df[weight].astype(float), _we=df[weight].astype(float) * df["early_career"])
+    cell = (g.groupby(["OCC", "STATEFIP", "quarter"])
+              .agg(w=("_w", "sum"), we=("_we", "sum"), exposure=("exposure", "first"),
+                   n=("_w", "size"))
               .reset_index())
+    cell = cell[cell["w"] > 0]
+    cell["early_share"] = cell["we"] / cell["w"]
+    print(f"      RQ2 cells: {len(cell):,} occupation x state x quarter cells from "
+          f"{len(df):,} records (weight {weight}); median {cell['n'].median():.0f} "
+          "records per cell")
     cell, names = _event_dummies(cell, {"expq": lambda x: x["exposure"]})
     base = "early_share ~ " + " + ".join(names) + " + C(OCC) + C(quarter)"
     try:
@@ -252,6 +266,8 @@ def save_event(res: pd.DataFrame, vcov: pd.DataFrame, path: pathlib.Path):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sample", default="data/out/analysis_sample.parquet")
+    ap.add_argument("--employment", default=None,
+                    help="RQ2 sample (default: <sample stem>_employment.parquet if present)")
     ap.add_argument("--out", default="data/out/results")
     ap.add_argument("--drop-pandemic", action="store_true")
     ap.add_argument("--start-quarter", default="",
@@ -303,7 +319,17 @@ def main() -> int:
         return 0
 
     print("[est] RQ2 — early-career employment share (Eq. 6)")
-    rq2, v2 = early_share(df, return_vcov=True)
+    emp_path = pathlib.Path(args.employment or sample.with_name(sample.stem + "_employment.parquet"))
+    if emp_path.exists():
+        emp = pd.read_parquet(emp_path)
+        if args.drop_pandemic:
+            emp = emp[emp["pandemic_window"] == 0]
+        if args.start_quarter:
+            emp = emp[emp["quarter"] >= args.start_quarter]
+        rq2, v2 = early_share(emp, return_vcov=True, weight="WTFINL")
+    else:
+        print(f"      WARNING: {emp_path} not found; RQ2 uses the ORG earnings sample")
+        rq2, v2 = early_share(df, return_vcov=True)
     save_event(rq2, v2, outdir / "rq2_early_share.csv")
 
     print("[est] RQ3 — hedonic implicit task prices (Eq. 7)")

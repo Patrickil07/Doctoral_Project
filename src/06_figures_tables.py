@@ -47,7 +47,24 @@ SPEC_LABELS = {
     "results_exposure_lmaioe": "LM-AIOE exposure",
     "results_rq1_trend": "RQ1 Model 2: linear trend",
     "results_rq1_from_2021q4": "RQ1 Model 3: from 2021Q4",
+    "results_no_soc43": "Without SOC 43",
+    "results_add_soc11_25_29": "Adding SOC 11, 25, 29",
+    "results_midband": "Ages 31-34 included",
+    "results_bands_22_28_40_55": "Bands 22-28 vs 40-55",
+    "results_keep_allocated": "Allocated earnings kept",
+    "results_drop_topcoded": "Top-coded earnings dropped",
+    "results_hourly_all_hours": "Hourly earnings, all hours",
+    "results_tasks_onet30": "O*NET 30.3 task measures",
+    "results_tasks_sum": "Summed-importance task shares",
+    "results_mapping_alt": "Alternative GWA mapping",
 }
+# Robustness specifications reported only in the pooled-contrast and pre-trend
+# tables (quarter-by-quarter tables with 16 columns would be unreadable); every
+# other specification also gets its own event-study column and figure line.
+POOLED_ONLY = {"results_no_soc43", "results_add_soc11_25_29", "results_midband",
+               "results_bands_22_28_40_55", "results_keep_allocated", "results_drop_topcoded",
+               "results_hourly_all_hours", "results_tasks_onet30", "results_tasks_sum",
+               "results_mapping_alt"}
 
 # Event-study outcomes: file in each specification folder -> figure/table meta.
 EVENT_STUDIES = {
@@ -66,7 +83,7 @@ EVENT_STUDIES = {
 }
 
 RQ3_TERMS = {
-    "z1": "θ1  z1 (analytic vs rest)",
+    "z1": "θ1  z1 (non-manual vs residual)",
     "z2": "θ2  z2",
     "z3": "θ3  z3",
     "ln_T": "λ  ln T",
@@ -474,7 +491,46 @@ def pretrend_rows(es: pd.DataFrame, vcov: pd.DataFrame | None = None) -> dict:
             "quarter of max": pre.loc[z.idxmax(), "quarter"],
             "p<0.05": int((pre["pvalue"] < 0.05).sum()),
             "p<0.10": int((pre["pvalue"] < 0.10).sum()),
-            "joint p": "" if np.isnan(p) else f"{p:.3f}"}
+            "joint p": fmt_p(p)}
+
+
+def fmt_p(p: float) -> str:
+    if p is None or np.isnan(p):
+        return ""
+    return "<0.001" if p < 0.001 else f"{p:.3f}"
+
+
+def holm(pvals: list) -> list:
+    """Holm (1979) step-down adjusted p-values."""
+    p = np.asarray(pvals, dtype=float)
+    order = np.argsort(p)
+    adj = np.empty_like(p)
+    running = 0.0
+    for rank, i in enumerate(order):
+        running = max(running, min(1.0, (len(p) - rank) * p[i]))
+        adj[i] = running
+    return adj.tolist()
+
+
+def pooled_contrast(es: pd.DataFrame, vcov: pd.DataFrame | None) -> dict:
+    """Average post coefficient and post-minus-pre average contrast with their
+    clustered standard errors (the pre-specified pooled estimands)."""
+    from scipy import stats
+    es = es[es["period"].isin(["pre", "post"])]
+    if vcov is None or not set(es["term"]) <= set(vcov.index):
+        return {}
+    b = es["estimate"].to_numpy()
+    V = vcov.loc[es["term"], es["term"]].to_numpy()
+    post = (es["period"] == "post").to_numpy(float)
+    pre = (es["period"] == "pre").to_numpy(float)
+    out = {}
+    for name, w in (("post", post / post.sum()),
+                    ("diff", post / post.sum() - pre / pre.sum() if pre.sum() else None)):
+        if w is None:
+            continue
+        est, se = float(w @ b), float(np.sqrt(w @ V @ w))
+        out[name] = (est, se, float(2 * stats.norm.sf(abs(est / se))) if se > 0 else np.nan)
+    return out
 
 
 def read_vcov(root: pathlib.Path, spec: str, fname: str) -> pd.DataFrame | None:
@@ -495,7 +551,7 @@ def fig_honest_did(hd: pd.DataFrame, title: str):
     ax.vlines(rob["Mbar"], rob["lb"], rob["ub"], color=COLORS[0], linewidth=2.0,
               label="Robust 95% set (relative magnitudes)")
     ax.axhline(0, color=MUTED, linewidth=0.8)
-    ax.set_xlabel("M̄ (post violations relative to the largest pre-period violation)")
+    ax.set_xlabel("M̄ (post-period quarter-to-quarter change in the violation, relative to the largest pre-period change)")
     ax.set_ylabel("Average post-period coefficient")
     ax.set_title(title, loc="left")
     b = hd["breakdown_Mbar"].iloc[0]
@@ -522,7 +578,9 @@ def build(root: pathlib.Path, outdir: pathlib.Path, specs: list, labels: dict) -
         f["dropped"] = f["dropped"].map(lambda v: "" if pd.isna(v) else f"{int(v):,}")
         f.columns = ["Step", "Records", "Dropped"]
         tw.write("table_4_1_sample", f, "Table 4.1 Sample construction (CPS basic monthly, 2020-2025)",
-                 "Counts from the step 05 sample log.", raw=t41)
+                 "Counts of person-month records from the step 05 sample log (an ORG "
+                 "respondent can appear twice, a basic-monthly respondent up to eight times).",
+                 raw=t41)
     else:
         print("[06] no logs/05_sample.log under root; Table 4.1 skipped")
 
@@ -556,14 +614,27 @@ def build(root: pathlib.Path, outdir: pathlib.Path, specs: list, labels: dict) -
                               "c4_residual": "c4 residual", "ln_T": "ln T"})
         tw.write("table_4_2_descriptives", f,
                  "Table 4.2 Occupation measures by exposure tercile (knowledge-intensive occupations)",
-                 "Means weighted by OEWS employment. Terciles as assigned in step 03.", raw=raw)
+                 "Means weighted by OEWS employment. Terciles are employment-weighted thirds of "
+                 "the knowledge-intensive occupations (step 03).", raw=raw)
     else:
         print(f"[06] {occ_path} not found; descriptive figures skipped")
 
     # Event studies: RQ1, RQ2, RQ4
-    pre_rows = []
+    pre_rows, pooled_rows = [], []
+    table_specs = [s for s in specs if s not in POOLED_ONLY]
     for key, (fname, title, ylab) in EVENT_STUDIES.items():
-        full = {s: read_result(root, s, fname) for s in specs}
+        outcome = title.split(":")[0] + (" (no task controls)" if key == "rq4_uncond" else
+                                         " (task controls)" if key == "rq4_cond" else "")
+        for s in specs:
+            d = read_result(root, s, fname)
+            if d is None:
+                continue
+            c = pooled_contrast(d, read_vcov(root, s, fname))
+            if c:
+                pooled_rows.append({"Outcome": outcome, "Specification": lab[s], "spec": s,
+                                    **{f"{k}_{m}": v for k, t in c.items()
+                                       for m, v in zip(("est", "se", "p"), t)}})
+        full = {s: read_result(root, s, fname) for s in table_specs}
         full = {s: d for s, d in full.items() if d is not None}
         if not full:
             continue
@@ -587,11 +658,39 @@ def build(root: pathlib.Path, outdir: pathlib.Path, specs: list, labels: dict) -
                       if has_trend else "")
         tw.write(f"table_{key}_event_study", f, title,
                  f"Reference quarter {REF_Q} omitted. " + STAR_NOTE + trend_note, raw=raw)
-        for s, d in frames.items():
-            pre_rows.append({"Outcome": title.split(":")[0] + (
-                " (no task controls)" if key == "rq4_uncond" else
-                " (task controls)" if key == "rq4_cond" else ""),
-                "Specification": lab[s], **pretrend_rows(d, read_vcov(root, s, fname))})
+        for s in specs:
+            d = read_result(root, s, fname)
+            if d is not None:
+                d = d[d["period"] != "trend"].reset_index(drop=True)
+                pre_rows.append({"Outcome": outcome, "Specification": lab[s],
+                                 **pretrend_rows(d, read_vcov(root, s, fname))})
+
+    if pooled_rows:
+        raw = pd.DataFrame(pooled_rows)
+        main = raw["spec"] == MAIN
+        raw["holm_p"] = np.nan
+        if main.any() and "diff_p" in raw:
+            ok = main & raw["diff_p"].notna()
+            raw.loc[ok, "holm_p"] = holm(raw.loc[ok, "diff_p"].tolist())
+        f = pd.DataFrame({
+            "Outcome": raw["Outcome"], "Specification": raw["Specification"],
+            "Post average": [coef_cells(e, se, p)[0] + " " + coef_cells(e, se, p)[1]
+                             for e, se, p in zip(raw["post_est"], raw["post_se"], raw["post_p"])],
+            "Post minus pre": ["" if pd.isna(e) else coef_cells(e, se, p)[0] + " "
+                               + coef_cells(e, se, p)[1] for e, se, p in
+                               zip(raw.get("diff_est", np.nan), raw.get("diff_se", np.nan),
+                                   raw.get("diff_p", np.nan))],
+            "p": [fmt_p(v) for v in raw.get("diff_p", pd.Series(np.nan, index=raw.index))],
+            "Holm p": [fmt_p(v) for v in raw["holm_p"]]})
+        tw.write("table_pooled_contrasts", f,
+                 "Pooled estimands: average post-period coefficient and post-minus-pre contrast",
+                 "Post average = mean of the post-period coefficients (relative to the reference "
+                 f"quarter {REF_Q} only). Post minus pre = mean post coefficient minus mean "
+                 "pre coefficient, which does not depend on the choice of reference quarter. "
+                 "Clustered standard errors in parentheses from the saved covariance matrices; "
+                 "p-values from the normal distribution. Holm p adjusts the four main-"
+                 "specification post-minus-pre contrasts for multiple testing. Model 2 has no "
+                 "pre-period coefficients. " + STAR_NOTE.split(". ")[1], raw=raw.drop(columns="spec"))
 
     # Honest DiD (step 08) for RQ1
     hd_rows = []
@@ -614,9 +713,11 @@ def build(root: pathlib.Path, outdir: pathlib.Path, specs: list, labels: dict) -
                         ignore_index=True)
         tw.write("table_rq1_honest_did", pd.DataFrame(hd_rows),
                  "RQ1: Rambachan and Roth (2023) sensitivity of the average post-period coefficient",
-                 "Relative-magnitudes restriction: each post-period violation of parallel trends is "
-                 "at most M̄ times the largest pre-period one. Robust sets from the HonestDiD R "
-                 "package (step 08); the breakdown M̄ is the largest M̄ at which zero is excluded.",
+                 "Relative-magnitudes restriction: each change in the parallel-trends violation "
+                 "between consecutive post-period quarters is at most M̄ times the largest such "
+                 "change between consecutive pre-period quarters (including the change into the "
+                 "reference quarter). Robust sets from the HonestDiD R package (step 08); the "
+                 "breakdown M̄ is the largest M̄ at which zero is excluded.",
                  raw=raw)
 
     rq4u = read_result(root, MAIN, EVENT_STUDIES["rq4_uncond"][0]) if MAIN in specs else None
@@ -633,10 +734,14 @@ def build(root: pathlib.Path, outdir: pathlib.Path, specs: list, labels: dict) -
                                           zip(dec["estimate_uncond"], dec["pvalue_uncond"])],
                 "With task controls": [f"{a:.3f}{stars(p)}" for a, p in
                                        zip(dec["estimate_cond"], dec["pvalue_cond"])],
-                "Difference (composition)": dec["composition_component"].map("{:.3f}".format)})
+                "Difference in coefficients": dec["composition_component"].map("{:.3f}".format)})
+            per = dec.get("period_uncond", pd.Series(np.where(dec["quarter"] < REF_Q, "pre", "post")))
+            avg = {k: dec.loc[per == k, "composition_component"].mean() for k in ("pre", "post")}
             tw.write("table_rq4_decomposition", f,
                      "RQ4: earnings with and without task controls, main specification",
-                     "Difference = without minus with task controls; point estimate only. "
+                     "Difference = without minus with task controls; point estimate only, with "
+                     "no standard error, so it is not a tested composition effect. Average "
+                     f"difference: pre-period {avg['pre']:.3f}, post-period {avg['post']:.3f}. "
                      + STAR_NOTE.split(". ")[1], raw=dec)
 
     if pre_rows:
@@ -650,7 +755,24 @@ def build(root: pathlib.Path, outdir: pathlib.Path, specs: list, labels: dict) -
                  raw=raw)
 
     # RQ3 hedonic
-    frames = {lab[s]: d for s in specs if (d := read_result(root, s, "rq3_hedonic.csv")) is not None}
+    every = {s: d for s in specs if (d := read_result(root, s, "rq3_hedonic.csv")) is not None}
+    psi_terms = ["z1:early_career:post", "z2:early_career:post", "z3:early_career:post",
+                 "early_career:post"]
+    if every:
+        rows, raws = [], []
+        for s, d in every.items():
+            ix = d.set_index("term")
+            row = {"Specification": lab[s]}
+            for t in psi_terms:
+                if t in ix.index:
+                    e, se_, p_ = ix.loc[t, ["estimate", "se", "pvalue"]]
+                    row[RQ3_TERMS[t].split("  ")[0]] = " ".join(coef_cells(e, se_, p_))
+            rows.append(row)
+            raws.append(d[d["term"].isin(psi_terms)].assign(specification=s))
+        tw.write("table_rq3_psi_by_spec", pd.DataFrame(rows).fillna(""),
+                 "RQ3: early-career task-price changes (ψ) and ρ in every specification",
+                 "Estimates of Eq. 7; " + STAR_NOTE, raw=pd.concat(raws, ignore_index=True))
+    frames = {lab[s]: d for s, d in every.items() if s not in POOLED_ONLY}
     # Eq. 7 has no exposure term, so a specification that only swaps the
     # exposure measure reproduces the main estimates; show those once.
     same = [k for k, d in frames.items() if k != lab.get(MAIN) and lab.get(MAIN) in frames
@@ -665,9 +787,15 @@ def build(root: pathlib.Path, outdir: pathlib.Path, specs: list, labels: dict) -
         f = stacked_coef_table(blocks, keys, RQ3_TERMS)
         f.columns = ["Term"] + list(f.columns[1:])
         raw = pd.concat([d.assign(specification=k) for k, d in frames.items()], ignore_index=True)
+        psi = frames.get(lab.get(MAIN), pd.DataFrame(columns=["term", "pvalue"]))
+        psi = psi[psi["term"].str.endswith(":early_career:post")]
+        holm_note = (" Holm-adjusted p for ψ1-ψ3 (main specification): "
+                     + ", ".join(f"ψ{t[1]} {fmt_p(v)}" for t, v in
+                                 zip(psi["term"], holm(psi["pvalue"].tolist()))) + "."
+                     if len(psi) else "")
         tw.write("table_rq3_hedonic", f, "RQ3: hedonic implicit task prices (Eq. 7), outcome ln W",
-                 "State-by-quarter and industry fixed effects; controls sex, age, education. "
-                 + STAR_NOTE + same_note, raw=raw)
+                 "State-by-quarter, industry and education fixed effects; controls sex and "
+                 "age. " + STAR_NOTE + holm_note + same_note, raw=raw)
 
     tw.workbook(outdir / "chapter4_tables.xlsx")
     write_sources(root, outdir, specs, lab)

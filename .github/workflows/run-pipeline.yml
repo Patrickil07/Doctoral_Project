@@ -16,8 +16,8 @@ on:
   workflow_dispatch:
     inputs:
       extract_id:
-        description: "IPUMS CPS extract number (re-submitted automatically if expired)"
-        default: "3"
+        description: "IPUMS CPS extract number (re-submitted automatically if expired); empty = request a new extract"
+        default: ""
 
 permissions:
   contents: write   # to save results on the `results` branch
@@ -53,13 +53,24 @@ jobs:
         run: python src/00_fetch_public_inputs.py | tee logs/00_fetch.log
       - name: 00b exposure (Eloundou human-rated beta -> SOC 2018)
         run: python src/00b_convert_exposure.py | tee logs/00b_exposure.log
-      - name: 01 O*NET 30.3
-        run: python src/01_download_onet.py --release 30.3 | tee logs/01_onet.log
+      # Main specification: O*NET 27.0 (August 2022), the last release before
+      # ChatGPT, so the task measures cannot reflect post-2022 changes. 30.3 is
+      # kept for the robustness run and as the reference for GWA names.
+      - name: 01 O*NET 27.0 (main) and 30.3 (robustness)
+        run: |
+          { python src/01_download_onet.py --release 27.0
+            python src/01_download_onet.py --release 30.3; } 2>&1 | tee logs/01_onet.log
+        shell: bash -eo pipefail {0}
       - name: 04 IPUMS CPS extract
-        run: python src/04_ipums_extract.py --extract-id ${{ inputs.extract_id || '3' }} | tee logs/04_ipums.log
+        run: |
+          if [ -n "${{ inputs.extract_id }}" ]; then
+            python src/04_ipums_extract.py --extract-id "${{ inputs.extract_id }}"
+          else
+            python src/04_ipums_extract.py
+          fi 2>&1 | tee logs/04_ipums.log
 
       - name: 02 task composition
-        run: python src/02_build_task_composition.py --onet data/raw/onet_30_3 | tee logs/02_tasks.log
+        run: python src/02_build_task_composition.py --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 | tee logs/02_tasks.log
       - name: 03 crosswalk to CPS occupations
         run: python src/03_crosswalk.py | tee logs/03_crosswalk.log
       - name: 05 estimation sample
@@ -71,17 +82,62 @@ jobs:
         run: python src/07_estimate.py --drop-pandemic --out data/out/results_drop_pandemic | tee logs/07_drop_pandemic.log
       - name: Robustness - GPT-4-rated exposure
         run: |
+          {
           python src/00b_convert_exposure.py --column dv_rating_beta --out data/interim/exposure_gpt4beta_soc2018.csv
-          python src/03_crosswalk.py --exposure data/interim/exposure_gpt4beta_soc2018.csv --out data/interim/occ_measures_gpt4beta.csv
+          python src/03_crosswalk.py --exposure data/interim/exposure_gpt4beta_soc2018.csv --out data/interim/occ_measures_gpt4beta.csv --codes-out data/interim/census_occ_codes_gpt4beta.csv
           python src/05_build_sample.py --occ data/interim/occ_measures_gpt4beta.csv --out data/out/analysis_sample_gpt4beta.parquet
           python src/07_estimate.py --sample data/out/analysis_sample_gpt4beta.parquet --out data/out/results_exposure_gpt4beta
+          } 2>&1 | tee logs/robustness_gpt4beta.log
         shell: bash -eo pipefail {0}
       - name: Robustness - LM-AIOE
         run: |
+          {
           python src/00b_convert_exposure.py --exposure data/raw/lm_aioe.xlsx --column "Language Modeling AIOE" --source-soc 2010 --out data/interim/exposure_lmaioe_soc2018.csv
-          python src/03_crosswalk.py --exposure data/interim/exposure_lmaioe_soc2018.csv --out data/interim/occ_measures_lmaioe.csv
+          python src/03_crosswalk.py --exposure data/interim/exposure_lmaioe_soc2018.csv --out data/interim/occ_measures_lmaioe.csv --codes-out data/interim/census_occ_codes_lmaioe.csv
           python src/05_build_sample.py --occ data/interim/occ_measures_lmaioe.csv --out data/out/analysis_sample_lmaioe.parquet
           python src/07_estimate.py --sample data/out/analysis_sample_lmaioe.parquet --out data/out/results_exposure_lmaioe
+          } 2>&1 | tee logs/robustness_lmaioe.log
+        shell: bash -eo pipefail {0}
+
+      # Sample-construction variants from the audit of 30 Sep 2026: each rebuilds
+      # the sample with one rule changed and re-estimates RQ1-RQ4.
+      - name: Robustness - sample variants
+        run: |
+          variant() {   # variant <name> <step 05 options...>
+            name="$1"; shift
+            {
+              python src/05_build_sample.py "$@" --out "data/out/analysis_sample_$name.parquet"
+              python src/07_estimate.py --sample "data/out/analysis_sample_$name.parquet" --out "data/out/results_$name"
+            } 2>&1 | tee "logs/robustness_$name.log"
+            rm -f "data/out/analysis_sample_$name.parquet" "data/out/analysis_sample_${name}_employment.parquet"
+          }
+          variant no_soc43 --majors 13,15,17,19,23,27
+          variant add_soc11_25_29 --majors 11,13,15,17,19,23,25,27,29,43
+          variant midband --include-midband
+          variant bands_22_28_40_55 --bands 22-28,40-55
+          variant keep_allocated --keep-allocated
+          variant drop_topcoded --drop-topcoded
+          variant hourly_all_hours --hours all
+        shell: bash -eo pipefail {0}
+
+      # Task-measure variants: O*NET 30.3 (post-2022 release), the older
+      # summed-importance aggregation, and the alternative GWA mapping.
+      - name: Robustness - task-measure variants
+        run: |
+          measure() {   # measure <name> <step 02 options...>
+            name="$1"; shift
+            {
+              python src/02_build_task_composition.py "$@" --out "data/interim/task_composition_$name.csv"
+              python src/03_crosswalk.py --tasks "data/interim/task_composition_$name.csv" --out "data/interim/occ_measures_$name.csv" --codes-out "data/interim/census_occ_codes_$name.csv"
+              python src/05_build_sample.py --occ "data/interim/occ_measures_$name.csv" --out "data/out/analysis_sample_$name.parquet"
+              python src/07_estimate.py --sample "data/out/analysis_sample_$name.parquet" --out "data/out/results_$name"
+            } 2>&1 | tee "logs/robustness_$name.log"
+            rm -f "data/out/analysis_sample_$name.parquet" "data/out/analysis_sample_${name}_employment.parquet"
+          }
+          measure tasks_onet30 --onet data/raw/onet_30_3
+          measure tasks_sum --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 --aggregate sum
+          measure mapping_alt --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 --map mapping/onet_activity_map_alt.csv
+        shell: bash -eo pipefail {0}
 
       - name: RQ1 Model 2 - linear exposure x early-career trend
         run: python src/07_estimate.py --rq1-trend --rq1-only --out data/out/results_rq1_trend | tee logs/07_rq1_trend.log
@@ -120,6 +176,7 @@ jobs:
             echo "date_utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             [ -f data/raw/ipums/_extract_used.json ] && cat data/raw/ipums/_extract_used.json
             [ -f data/raw/_public_inputs_manifest.json ] && cat data/raw/_public_inputs_manifest.json
+            [ -f data/raw/onet_27_0/_manifest.json ] && cat data/raw/onet_27_0/_manifest.json
             [ -f data/raw/onet_30_3/_manifest.json ] && cat data/raw/onet_30_3/_manifest.json
           } > logs/provenance.txt || true
 
@@ -132,6 +189,7 @@ jobs:
             data/out/results*/*.csv
             data/out/chapter4/
             data/interim/occ_measures*.csv
+            data/interim/census_occ_codes.csv
             logs/
           retention-days: 90
 
@@ -152,7 +210,7 @@ jobs:
             git -C "$out" rm -rfq --ignore-unmatch .
           fi
           mkdir -p "$out/$dest"
-          cp --parents data/out/results*/*.csv data/interim/occ_measures*.csv "$out/$dest/"
+          cp --parents data/out/results*/*.csv data/interim/occ_measures*.csv data/interim/census_occ_codes.csv "$out/$dest/"
           cp -r logs "$out/$dest/"
           [ -d data/out/chapter4 ] && cp -r data/out/chapter4 "$out/$dest/chapter4"
           cd "$out"

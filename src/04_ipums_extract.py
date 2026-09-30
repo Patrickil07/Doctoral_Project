@@ -31,11 +31,15 @@ VARS = [
     "STATEFIP", "AGE", "SEX", "EDUC",             # controls, age bands, state FE
     "EMPSTAT", "CLASSWKR", "IND", "OCC",          # sample rules, industry FE, merge key
     "EARNWEEK", "EARNWEEK2",                      # weekly earnings
+    "UHRSWORKORG",                                # usual weekly hours (ORG): full-time rule
+    "WTFINL",                                     # final person weight (RQ2, all rotation groups)
 ]
 # Requested if IPUMS accepts the name; dropped with a warning if it does not.
-OPTIONAL_VARS = [
-    "QEARNWEE",                                   # EARNWEEK allocation (imputation) flag
-]
+OPTIONAL_VARS: list[str] = []
+# IPUMS does not accept allocation flags as variable names (QEARNWEE was
+# rejected as "Invalid mnemonic"): they come with the data-quality-flags option
+# of each variable. Step 05 drops records whose earnings were allocated.
+FLAGGED_VARS = ["EARNWEEK", "EARNWEEK2", "UHRSWORKORG"]
 
 
 def month_samples(start: str, end: str) -> list[str]:
@@ -194,13 +198,21 @@ def main() -> int:
           f"({samples[0]} to {samples[-1]}), {len(VARS)} variables")
 
     def make(variables):
-        return MicrodataExtract(collection="cps", description=args.description,
-                                samples=samples, variables=variables)
+        extract = MicrodataExtract(collection="cps", description=args.description,
+                                   samples=samples, variables=variables)
+        extract.add_data_quality_flags([v for v in FLAGGED_VARS if v in variables])
+        return extract
 
     extract, used = submit_dropping_optional(client, make, VARS, OPTIONAL_VARS)
     print(f"[ipums] submitted extract #{extract.extract_id} with variables {used}; waiting…")
     client.wait_for_extract(extract)
     client.download_extract(extract, download_dir=outdir)
+    import json
+    from datetime import datetime, timezone
+    (outdir / "_extract_used.json").write_text(json.dumps({
+        "extract_id": extract.extract_id, "requested_id": None,
+        "note": f"new request; variables {used}; data quality flags for {FLAGGED_VARS}",
+        "downloaded_utc": datetime.now(timezone.utc).isoformat()}, indent=2))
 
     print(f"[ipums] downloaded to {outdir}")
     print(f"[ipums] RECORD THIS IN THE METHODOLOGY APPENDIX: "

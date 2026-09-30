@@ -9,9 +9,10 @@ Usage:
     python src/01_download_onet.py --release 30.3
     python src/01_download_onet.py --release 28.0 --outdir data/raw/onet_28_0
 
-Pin ONE release for the main specification (proposal Section 6.6: "hold task
-composition fixed at a single pre-period O*NET release"). Download a second,
-later release only for the time-varying robustness check.
+Pin ONE release for the main specification (proposal: "hold task
+composition fixed at a single pre-period O*NET release"): the pipeline uses
+27.0 (August 2022, before ChatGPT). 30.3 is downloaded too, for the robustness
+check and as the reference for GWA names (step 02 --id-reference).
 """
 import argparse
 import hashlib

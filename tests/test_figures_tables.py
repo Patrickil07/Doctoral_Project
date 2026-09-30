@@ -198,3 +198,15 @@ def test_joint_wald_p_matches_step07():
     V = _vcov(es)
     assert fig.joint_wald_p(es, V) == pytest.approx(est.joint_wald(es, V)["wald_p"])
     assert np.isnan(fig.joint_wald_p(es, None))
+
+
+def test_pooled_contrast_and_holm():
+    es = pd.DataFrame({"term": ["a", "b", "c", "d"], "estimate": [0.1, 0.3, 0.5, 0.9],
+                       "period": ["pre", "pre", "post", "post"]})
+    V = pd.DataFrame(np.diag([0.01, 0.01, 0.04, 0.04]), index=es.term, columns=es.term)
+    c = fig.pooled_contrast(es, V)
+    assert c["post"][0] == pytest.approx(0.7) and c["post"][1] == pytest.approx(np.sqrt(0.02))
+    assert c["diff"][0] == pytest.approx(0.5)
+    assert c["diff"][1] == pytest.approx(np.sqrt(0.02 + 0.005))
+    assert fig.holm([0.01, 0.04, 0.03]) == pytest.approx([0.03, 0.06, 0.06])
+    assert fig.fmt_p(2e-5) == "<0.001"

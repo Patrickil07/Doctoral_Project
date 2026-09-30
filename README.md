@@ -127,6 +127,30 @@ relative-magnitudes sensitivity for the average post-period RQ1 coefficient
 (Models 1 and 3; Model 2 has no pre-period coefficients), including the
 breakdown value M̄.
 
+### Robustness runs
+
+Besides the pandemic and exposure-measure runs, every run re-estimates RQ1–RQ4
+with one data-construction rule changed (added after the audit of 30 September
+2026). They appear in `table_pooled_contrasts` and `table_rq3_psi_by_spec`:
+
+| Folder | Change from the main specification |
+|---|---|
+| `results_no_soc43` | SOC 43 (office and administrative support) left out |
+| `results_add_soc11_25_29` | management, education and healthcare practitioners added |
+| `results_midband` | ages 31–34 kept (in the experienced group) |
+| `results_bands_22_28_40_55` | early-career 22–28 vs experienced 40–55 |
+| `results_keep_allocated` | imputed (allocated) earnings kept |
+| `results_drop_topcoded` | earnings at the common top-code dropped |
+| `results_hourly_all_hours` | all hours, log hourly instead of weekly earnings |
+| `results_tasks_onet30` | task measures from O\*NET 30.3 (2025) instead of 27.0 |
+| `results_tasks_sum` | task shares from summed instead of mean GWA importance |
+| `results_mapping_alt` | alternative GWA mapping (`mapping/onet_activity_map_alt.csv`) |
+
+The primary estimands are the pooled contrasts (average post-period
+coefficient minus average pre-period coefficient), which do not depend on the
+reference quarter; the table adds Holm-adjusted p-values across the four main
+outcomes, and the RQ3 table note does the same for ψ1–ψ3.
+
 ### Chapter 4 figures and tables (step 06)
 
 Each pipeline run ends with step 06, which turns the saved result files into

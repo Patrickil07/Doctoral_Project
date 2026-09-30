@@ -4,9 +4,11 @@
 # Reads the step 07 event-study coefficients and their clustered covariance
 # matrix (aggregate results only, no microdata) and reports robust 95%
 # confidence sets for the average post-period coefficient (2022Q4-2025Q4) as
-# Mbar grows. Mbar bounds each post-period violation of parallel trends by
-# Mbar times the largest pre-period one; the breakdown value is the largest
-# Mbar at which the robust set still excludes zero.
+# Mbar grows. Mbar bounds each change in the parallel-trends violation between
+# consecutive post-period quarters by Mbar times the largest such change
+# between consecutive pre-period quarters (including the change into the
+# reference quarter); the breakdown value is the largest Mbar at which the
+# robust set still excludes zero.
 #
 # Uses the authors' reference implementation, the HonestDiD R package.
 #
@@ -42,10 +44,12 @@ V <- V[res$term, res$term]
 # HonestDiD needs consecutive quarters with the reference quarter between the
 # last pre and first post quarter (it is omitted, so it is not in betahat).
 q_index <- function(q) as.integer(substr(q, 1, 4)) * 4 + as.integer(substr(q, 6, 6))
-if (any(diff(q_index(res$quarter)) != 1 &
-        !(res$period[-nrow(res)] == "pre" & res$period[-1] == "post"))) {
-  stop("event-study quarters are not consecutive (e.g. the pandemic-dropped ",
-       "specification); relative magnitudes need an unbroken pre-period")
+gap <- diff(q_index(res$quarter))
+at_ref <- res$period[-nrow(res)] == "pre" & res$period[-1] == "post"
+if (any(gap[!at_ref] != 1) || any(gap[at_ref] != 2)) {
+  stop("event-study quarters are not consecutive, or more than the reference quarter ",
+       "is missing between pre and post (e.g. the pandemic-dropped specification); ",
+       "relative magnitudes need an unbroken event window")
 }
 
 n_pre <- sum(res$period == "pre")

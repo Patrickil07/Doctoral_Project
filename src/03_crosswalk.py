@@ -8,10 +8,10 @@ FIXES in this version
      old search picked that cell for BOTH columns, producing two columns named
      soc2018 -> AttributeError: 'DataFrame' object has no attribute 'str'.
      Now the two columns must be distinct, each matching one concept only.
-  2. Wildcard SOC codes (e.g. 13-20XX) are expanded to every matching detailed
-     SOC in the task data. The old pattern accepted only all-digit codes and
-     silently dropped them,
-     removing aggregated occupations from the crosswalk.
+  2. Wildcard SOC codes (e.g. 13-20XX) are expanded to the matching detailed
+     SOCs in the task data that no other Census row names (see
+     expand_wildcards; giving them every matching SOC double-counted the
+     separately coded ones).
   3. Manual override: if detection still fails, set OCC_COL / SOC_COL below to
      the exact header text in your file.
 
@@ -100,40 +100,150 @@ def load_crosswalk(path: pathlib.Path, occ_col: str | None = None,
         "note the exact header names, and pass --occ-col and --soc-col.")
 
 
-def expand_wildcards(xw: pd.DataFrame, known_socs: pd.Series) -> pd.DataFrame:
-    """Expand non-detailed SOC codes to the detailed SOCs in the task data.
+def census_pattern(pat: str, known_set: set) -> str:
+    """Normalise a Census SOC entry to an exact detailed SOC or an X pattern.
 
-    '13-20XX' -> every known SOC starting '13-20'. A broad-group code ending in
-    0 that is not itself a detailed SOC (e.g. Census '15-1230' for 15-1231 and
-    15-1232) is treated the same way, as '15-123X'.
+    A code ending in 0 that is not itself a detailed SOC is a group code: all
+    its trailing zeros become X, so broad '15-1230' -> '15-123X' and minor
+    '25-1000' -> '25-1XXX' (replacing only the last zero made minor-group codes
+    match nothing).
+    """
+    if "X" in pat or pat in known_set or not pat.endswith("0"):
+        return pat
+    stem = pat.rstrip("0")
+    return stem + "X" * (len(pat) - len(stem))
+
+
+def expand_wildcards(xw: pd.DataFrame, known_socs: pd.Series) -> pd.DataFrame:
+    """Assign every detailed SOC in the task data to the Census codes that cover it.
+
+    In the Census list, 'X' means "the detailed codes of this group that are
+    NOT listed separately": '13-20XX' (Other financial specialists) covers the
+    13-20xx SOCs that no other Census row names. So a SOC named explicitly by
+    one Census row is never also given to a wildcard row, and among wildcard
+    rows the most specific pattern (fewest X) takes it first.
+
+    Returns cps_occ, soc2018, share: share = 1 / (number of Census codes the
+    SOC is assigned to), so a SOC listed under two codes splits its employment
+    instead of being counted twice. Such SOCs are printed.
     """
     known = sorted(set(known_socs.dropna().astype(str)))
     known_set = set(known)
-    rows, unmatched = [], []
-    for occ, pat in xw[["cps_occ", "soc_pattern"]].itertuples(index=False):
-        if pat.endswith("0") and pat not in known_set and "X" not in pat:
-            pat = pat[:-1] + "X"
-        if "X" not in pat:
-            rows.append((occ, pat)); continue
-        rx = re.compile("^" + pat.replace("X", r"\d") + "$")
-        hits = [s for s in known if rx.match(s)]
-        if hits:
-            rows.extend((occ, s) for s in hits)
-        else:
-            unmatched.append(pat)
+    pats = [(occ, census_pattern(p, known_set))
+            for occ, p in xw[["cps_occ", "soc_pattern"]].itertuples(index=False)]
+    rows = [(occ, p) for occ, p in pats if "X" not in p]
+    taken = {p for _, p in rows}
+    unmatched = []
+    wild = sorted(((occ, p) for occ, p in pats if "X" in p), key=lambda t: t[1].count("X"))
+    for n_x in sorted({p.count("X") for _, p in wild}):
+        level = [(occ, p) for occ, p in wild if p.count("X") == n_x]
+        new = set()
+        for occ, pat in level:
+            rx = re.compile("^" + pat.replace("X", r"\d") + "$")
+            hits = [s for s in known if rx.match(s) and s not in taken]
+            if hits:
+                rows.extend((occ, s) for s in hits)
+                new.update(hits)
+            else:
+                unmatched.append((occ, pat))
+        taken |= new
     if unmatched:
-        print(f"[xwalk] {len(unmatched)} wildcard codes matched no task-data SOC: "
-              f"{sorted(set(unmatched))[:8]}")
+        print(f"[xwalk] {len(unmatched)} Census codes matched no task-data SOC "
+              f"(no measures for them): {sorted(unmatched)}")
     out = pd.DataFrame(rows, columns=["cps_occ", "soc2018"]).drop_duplicates()
+    n_codes = out.groupby("soc2018")["cps_occ"].transform("nunique")
+    out["share"] = 1.0 / n_codes
+    multi = out[n_codes > 1].groupby("soc2018")["cps_occ"].apply(sorted)
+    if len(multi):
+        print(f"[xwalk] {len(multi)} SOCs are listed under more than one Census code; "
+              f"their employment is split equally: {dict(multi)}")
     print(f"[xwalk] {len(xw)} Census rows -> {len(out)} Census x detailed-SOC pairs "
-          f"after wildcard expansion")
+          f"after wildcard expansion; {out['soc2018'].nunique()} distinct SOCs")
     return out
+
+
+def fill_employment(df: pd.DataFrame, oews: pd.DataFrame) -> pd.DataFrame:
+    """Employment for detailed SOCs that OEWS does not publish separately.
+
+    The employment of the SOC's broad group (15-1250 for 15-1252), less what its
+    published detailed SOCs account for, is split equally among its unpublished
+    detailed SOCs; failing that, the minor group (15-1200). A SOC with neither
+    gets 0 (it then counts only if its Census code has no other SOC) and is
+    listed. Replaces a fill with the median of all SOCs, which invented weights.
+    """
+    df = df.copy()
+    pub = oews.set_index("soc2018")["emp"]
+    miss = sorted(set(df.loc[df["emp"].isna(), "soc2018"]))
+    filled, none = {}, []
+    detailed_pub = {s for s in pub.index if not s.endswith("0")}
+    for level, group_of in (("broad", lambda s: s[:6] + "0"), ("minor", lambda s: s[:5] + "00")):
+        todo = [s for s in miss if s not in filled]
+        groups = {}
+        for s in todo:
+            groups.setdefault(group_of(s), []).append(s)
+        for g, socs in groups.items():
+            if g not in pub.index:
+                continue
+            covered = (sum(pub[d] for d in detailed_pub if group_of(d) == g)
+                       + sum(v for d, (v, _) in filled.items() if group_of(d) == g))
+            rest = pub[g] - covered
+            if rest > 0:
+                for s in socs:
+                    filled[s] = (rest / len(socs), f"{level} {g}")
+    for s in miss:
+        if s not in filled:
+            none.append(s)
+            filled[s] = (0.0, "none")
+    for s, (v, how) in sorted(filled.items()):
+        print(f"[xwalk] OEWS employment for {s} imputed from {how}: {v:,.0f}")
+    df.loc[df["emp"].isna(), "emp"] = df.loc[df["emp"].isna(), "soc2018"].map(
+        lambda s: filled[s][0])
+    if none:
+        print(f"[xwalk] WARNING: {len(none)} SOCs have no OEWS employment at any level "
+              f"(weight 0): {none}")
+    return df
+
+
+def collapse_onet_soc(tasks: pd.DataFrame, cols: list) -> pd.DataFrame:
+    """One row per 6-digit SOC: the main O*NET-SOC occupation (.00) where it
+    exists, otherwise the unweighted mean of the detail codes (step 00b applies
+    the same rule to exposure)."""
+    t = tasks.copy()
+    t["onet_soc"] = t.get("onet_soc", t["soc2018"]).astype(str)
+    main = t["onet_soc"].str.endswith(".00")
+    has_main = set(t.loc[main, "soc2018"])
+    t = t[main | ~t["soc2018"].isin(has_main)]
+    return t.groupby("soc2018")[cols].mean().reset_index()
+
+
+def weighted_terciles(values: pd.Series, weights: pd.Series) -> tuple[float, float]:
+    """Upper bounds of the low and mid thirds of total weight: each occupation
+    goes to the third holding the midpoint of its weight (sorted by value)."""
+    d = pd.DataFrame({"v": values, "w": weights}).dropna().sort_values("v")
+    share = d["w"] / d["w"].sum()
+    third = np.minimum((3 * (share.cumsum() - share / 2)).astype(int), 2)
+    lo = float(d.loc[third == 0, "v"].max()) if (third == 0).any() else -np.inf
+    hi = float(d.loc[third <= 1, "v"].max()) if (third <= 1).any() else lo
+    return lo, hi
+
+
+def census_code_majors(xw: pd.DataFrame) -> pd.DataFrame:
+    """SOC major group of EVERY Census occupation code in the crosswalk, with or
+    without task data (step 05 selects the knowledge universe from this list, so
+    codes without measures are counted, not silently dropped)."""
+    d = xw.assign(soc_major=xw["soc_pattern"].str.slice(0, 2))
+    return d.drop_duplicates("cps_occ")[["cps_occ", "soc_major"]].sort_values("cps_occ")
 
 
 def _wavg(values: np.ndarray, emp: np.ndarray) -> float:
     """Employment-weighted mean; equal weights if employment sums to zero."""
     w = emp / emp.sum() if emp.sum() > 0 else np.repeat(1 / len(emp), len(emp))
     return float(np.dot(w, values))
+
+
+# Knowledge-intensive SOC major groups (step 05 uses the same list; a test
+# checks they agree). Only used here for the exposure terciles.
+KNOWLEDGE_MAJOR = {"13", "15", "17", "19", "23", "27", "43"}
 
 
 def aggregate_to_cps(df: pd.DataFrame) -> pd.DataFrame:
@@ -145,7 +255,7 @@ def aggregate_to_cps(df: pd.DataFrame) -> pd.DataFrame:
     file is used, and the exposure robustness runs vary exposure only.
     """
     def one(g: pd.DataFrame) -> pd.Series:
-        emp = g["emp"].to_numpy(dtype=float)
+        emp = (g["emp"] * g.get("share", 1.0)).to_numpy(dtype=float)
         vals = {c: _wavg(g[c].to_numpy(dtype=float), emp) for c in PARTS + ["ln_T"]}
         has = g["exposure"].notna().to_numpy()
         vals["exposure"] = (_wavg(g["exposure"].to_numpy(dtype=float)[has], emp[has])
@@ -165,7 +275,8 @@ def soc_major_by_occ(df: pd.DataFrame) -> pd.DataFrame:
     with the most OEWS employment is used. Replaces IPUMS OCCSOC, which the CPS
     collection does not offer.
     """
-    d = df.assign(soc_major=df["soc2018"].astype(str).str.slice(0, 2))
+    d = df.assign(soc_major=df["soc2018"].astype(str).str.slice(0, 2),
+                  emp=df["emp"] * df.get("share", 1.0))
     emp = d.groupby(["cps_occ", "soc_major"])["emp"].sum().reset_index()
     emp = emp.sort_values(["cps_occ", "emp", "soc_major"], ascending=[True, False, True])
     return emp.drop_duplicates("cps_occ")[["cps_occ", "soc_major"]]
@@ -178,6 +289,8 @@ def main() -> int:
     ap.add_argument("--crosswalk", default="data/raw/census_soc_crosswalk.xlsx")
     ap.add_argument("--exposure", default="data/interim/exposure_soc2018.csv")
     ap.add_argument("--out", default="data/interim/occ_measures.csv")
+    ap.add_argument("--codes-out", default="data/interim/census_occ_codes.csv",
+                    help="every Census code with its SOC major group (for step 05)")
     ap.add_argument("--occ-col", default=OCC_COL)
     ap.add_argument("--soc-col", default=SOC_COL)
     args = ap.parse_args()
@@ -190,7 +303,7 @@ def main() -> int:
 
     tasks = pd.read_csv(args.tasks)
     # collapse O*NET-SOC detail (e.g. 15-1252.01) to detailed SOC (15-1252)
-    tasks = tasks.groupby("soc2018")[PARTS + ["ln_T"]].mean().reset_index()
+    tasks = collapse_onet_soc(tasks, PARTS + ["ln_T"])
 
     exposure = pd.read_csv(args.exposure, dtype={"soc2018": str})
     if "exposure" not in exposure.columns:
@@ -215,7 +328,7 @@ def main() -> int:
         print("[xwalk] nothing left after merging - check that SOC codes in the three "
               "inputs use the same format (e.g. 15-1252)", file=sys.stderr)
         return 1
-    df["emp"] = df["emp"].fillna(df["emp"].median())
+    df = fill_employment(df, oews)
 
     occ = aggregate_to_cps(df)
     no_occ_exp = occ["exposure"].isna().sum()
@@ -234,12 +347,24 @@ def main() -> int:
     occ["z2"] = np.sqrt(2 / 3) * np.log(np.sqrt(c1 * c3) / c2)
     occ["z3"] = np.sqrt(1 / 2) * np.log(c1 / c3)
 
-    # exposure terciles for the robustness specification
-    occ["exposure_tercile"] = pd.qcut(occ["exposure"], 3, labels=["low", "mid", "high"],
-                                      duplicates="drop")
+    # Exposure terciles (descriptive tables only): employment-weighted cut points
+    # WITHIN the knowledge-intensive occupations, so each third holds about a
+    # third of the analysed employment. Other codes are placed by the same cuts.
+    know = occ["soc_major"].astype(str).str.zfill(2).isin(KNOWLEDGE_MAJOR)
+    lo, hi = weighted_terciles(occ.loc[know, "exposure"], occ.loc[know, "emp_total"])
+    occ["exposure_tercile"] = np.select(
+        [occ["exposure"].isna(), occ["exposure"] <= lo, occ["exposure"] <= hi],
+        [None, "low", "mid"], "high")
+    print(f"[xwalk] exposure tercile cuts (knowledge occupations, employment-weighted): "
+          f"{lo:.3f}, {hi:.3f}")
 
     pathlib.Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     occ.to_csv(args.out, index=False)
+    codes = census_code_majors(xw_raw)
+    codes["has_measures"] = codes["cps_occ"].isin(occ.loc[occ["exposure"].notna(), "cps_occ"])
+    codes.to_csv(args.codes_out, index=False)
+    print(f"[xwalk] {len(codes)} Census codes ({int(codes['has_measures'].sum())} with "
+          f"task and exposure measures) written to {args.codes_out}")
     print(f"[xwalk] {len(occ)} CPS occupation codes written to {args.out}")
     print(occ[["z3", "exposure"]].describe().round(3).to_string())
     return 0
