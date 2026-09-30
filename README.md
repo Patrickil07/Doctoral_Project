@@ -33,7 +33,9 @@ Google Drive layout (`My Drive/doctoral project/`):
 │   ├── 03_crosswalk.py              SOC → CPS occupation codes, OEWS weights, exposure
 │   ├── 04_ipums_extract.py          IPUMS CPS extract via the IPUMS API
 │   ├── 05_build_sample.py           estimation sample (Table 4.1 log)
-│   └── 07_estimate.py               RQ1–RQ4 (Eqs. 5–7)
+│   ├── 06_figures_tables.py         Chapter 4 figures + formatted tables, from saved results only
+│   ├── 07_estimate.py               RQ1–RQ4 (Eqs. 5–7) and the RQ1 specification menu
+│   └── 08_honest_did.R              Rambachan & Roth (2023) sensitivity for RQ1 (HonestDiD R package)
 ├── mapping/                     O*NET activity → task-part mapping (a design choice; versioned)
 ├── notebooks/
 │   └── run_pipeline_colab.ipynb     runs src/ on Colab: code from GitHub, data on Drive
@@ -45,8 +47,8 @@ Google Drive layout (`My Drive/doctoral project/`):
 └── requirements*.txt
 ```
 
-Step 06 is unused: the USAJOBS strand was removed because no research
-question uses it (the number is kept so existing references stay valid).
+Step 06 (figures and tables) runs after step 07 because it only reads the
+result files 07 writes; the number was freed when the USAJOBS strand was removed.
 
 Each `notebooks/*.ipynb` has a `.py` twin (jupytext) so changes are readable in diffs.
 
@@ -77,11 +79,95 @@ The whole pipeline runs on GitHub's machines with one click; no Colab needed.
    and `logs/provenance.txt` (commit, run URL, extract number, input checksums).
 4. The same files are saved permanently on the `results` branch, one folder
    per run: `runs/<date>_run<N>_<commit>/`. The run artifact expires after 90
-   days; the branch copy does not. Each run's folder is also copied to Drive
-   `07_Data/results/`.
+   days; the branch copy does not. Each run's folder is also copied to Google
+   Drive, `07_Data/out/pipeline_runs/<run>/`, once the Drive token below is set.
 
 Every input is downloaded fresh; IPUMS microdata stays on the runner and is
 deleted afterwards. Only aggregate outputs are kept.
+
+### Google Drive copy
+
+Every run folder (aggregate results, logs, `chapter4/`; never microdata) is
+copied to `07_Data/out/pipeline_runs/<run>/` in Google Drive by
+`.github/sync_drive.sh`, and each file is checked against the original (size
+and MD5). run-pipeline copies each new run, build-chapter4 re-copies a run
+after rebuilding it, and **sync-drive** copies saved runs on demand (a run
+name, empty for the newest, or `all`). A Drive problem never fails a run.
+
+One-time setup (on your own computer, not Colab, because it opens a browser):
+
+1. Install rclone (<https://rclone.org/downloads/>).
+2. Run `rclone authorize "drive"`, sign in with the Google account that owns
+   the Drive folder and allow access. rclone prints a token: the text starting
+   with `{"access_token"` and ending with `}`.
+3. Add it as the repository secret `RCLONE_DRIVE_TOKEN` (Settings → Secrets and
+   variables → Actions → New repository secret).
+4. Actions tab → **sync-drive** → **Run workflow** with `all` to copy the runs
+   saved so far.
+
+The target is the `pipeline_runs` folder; to use another one, set the
+repository variable `GDRIVE_FOLDER_ID` to that folder's id (the last part of
+its Drive URL).
+
+### RQ1 specification menu
+
+Every run estimates RQ1 three ways, each saved as its own results folder:
+
+| Model | Folder | What it does |
+|---|---|---|
+| 1 Baseline | `results/` | Event study over 2020–2025 (Eq. 5), pre-trend shown as estimated |
+| 2 Linear trend | `results_rq1_trend/` | Adds E×J×t (t = quarters from 2022Q3) and keeps post-quarter dummies only, so the trend is fitted on the pre-period and each post coefficient is the deviation from its extrapolation (Dobkin et al. 2018) |
+| 3 From 2021Q4 | `results_rq1_from_2021q4/` | Same as Model 1 on 2021Q4–2025Q4 |
+
+With every pre-period dummy kept, a linear E×J×t term would be perfectly
+collinear with them, which is why Model 2 drops them. Each event study also
+saves its clustered covariance matrix (`*_vcov.csv`), which gives the joint
+pre-trend Wald test and feeds step 08: the Rambachan & Roth (2023)
+relative-magnitudes sensitivity for the average post-period RQ1 coefficient
+(Models 1 and 3; Model 2 has no pre-period coefficients), including the
+breakdown value M̄.
+
+### Robustness runs
+
+Besides the pandemic and exposure-measure runs, every run re-estimates RQ1–RQ4
+with one data-construction rule changed (added after the audit of 30 September
+2026). They appear in `table_pooled_contrasts` and `table_rq3_psi_by_spec`:
+
+| Folder | Change from the main specification |
+|---|---|
+| `results_no_soc43` | SOC 43 (office and administrative support) left out |
+| `results_add_soc11_25_29` | management, education and healthcare practitioners added |
+| `results_midband` | ages 31–34 kept (in the experienced group) |
+| `results_bands_22_28_40_55` | early-career 22–28 vs experienced 40–55 |
+| `results_keep_allocated` | imputed (allocated) earnings kept |
+| `results_drop_topcoded` | earnings at the common top-code dropped |
+| `results_hourly_all_hours` | all hours, log hourly instead of weekly earnings |
+| `results_tasks_onet30` | task measures from O\*NET 30.3 (2025) instead of 27.0 |
+| `results_tasks_sum` | task shares from summed instead of mean GWA importance |
+| `results_mapping_alt` | alternative GWA mapping (`mapping/onet_activity_map_alt.csv`) |
+
+The primary estimands are the pooled contrasts (average post-period
+coefficient minus average pre-period coefficient), which do not depend on the
+reference quarter; the table adds Holm-adjusted p-values across the four main
+outcomes, and the RQ3 table note does the same for ψ1–ψ3.
+
+### Chapter 4 figures and tables (step 06)
+
+Each pipeline run ends with step 06, which turns the saved result files into
+figures and formatted tables in `chapter4/` next to the results:
+`figures/` (PNG at 300 dpi and PDF), `tables/` (CSV, Markdown, LaTeX) and
+`chapter4_tables.xlsx` (every table on its own sheet, for pasting into Word).
+It never touches microdata.
+
+To rebuild them for a run that is already saved, without re-running the
+pipeline (e.g. after changing a figure): Actions tab → **build-chapter4** →
+**Run workflow** (leave the run folder empty for the newest run). Locally:
+`make figures RUN=<path to a run folder copied from the results branch>`.
+
+Every `data/out/results*/` folder is one specification and shows up in the
+tables and comparison figures automatically. To add one (for example an extra
+RQ1 specification), write it with `07_estimate.py --out data/out/results_<name>`
+and give it a readable name in `SPEC_LABELS` in `src/06_figures_tables.py`.
 
 ## Running the pipeline locally or on Colab
 
@@ -93,6 +179,9 @@ make exposure                   # Eloundou human-rated beta → SOC 2018
 make estimate                   # 02 → 03 → 05 → 07, rebuilding only what changed
 make robustness                 # pandemic window dropped
 make robustness-exposure        # GPT-4-rated beta, LM-AIOE
+make rq1-models                 # RQ1 Model 2 (linear trend), Model 3 (from 2021Q4)
+make honest-did                 # 08: Rambachan & Roth sensitivity (needs R + HonestDiD)
+make figures                    # 06: Chapter 4 figures + tables -> data/out/chapter4/
 ```
 
 Outputs land in `data/out/results/`. To cite results in a chapter, follow

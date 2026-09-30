@@ -16,14 +16,15 @@ data/
 
 | File | Source | How it is obtained | Record in methodology |
 |---|---|---|---|
-| `raw/onet_30_3/` | O\*NET Resource Center, database release 30.3 (text files) | `make onet` / `src/01_download_onet.py` | release + SHA-256 from `_manifest.json` |
+| `raw/onet_27_0/` | O\*NET Resource Center, database release 27.0 (August 2022, the last before ChatGPT): **main task measures** | `src/01_download_onet.py --release 27.0` | release + SHA-256 from `_manifest.json` |
+| `raw/onet_30_3/` | O\*NET release 30.3 (2025): GWA-name reference for the mapping and the `results_tasks_onet30` robustness run | `make onet` / `src/01_download_onet.py` | release + SHA-256 from `_manifest.json` |
 | `raw/oews_national.xlsx` | BLS OEWS national estimates, **May 2021** | `make fetch` / `src/00_fetch_public_inputs.py` | year, URL, SHA-256 from `raw/_public_inputs_manifest.json` |
 | `raw/census_soc_crosswalk.xlsx` | U.S. Census Bureau, 2018 Census Occupation Code List with Crosswalk (26 Sep 2019) | `make fetch` | URL, SHA-256 |
 | `raw/soc_2010_to_2018_crosswalk.xlsx` | BLS SOC 2010 → 2018 crosswalk | `make fetch` | URL, SHA-256 |
 | `raw/cpi_u.csv` | BLS CPI-U, all items, U.S. city average, NSA (`CUUR0000SA0`) → `year,month,cpi` | `make fetch` | series id, download date |
 | `raw/eloundou_occ_level.csv` | **Primary exposure measure.** Eloundou, Manning, Mishkin & Rock (2024), *GPTs are GPTs*, `data/occ_level.csv` from github.com/openai/GPTs-are-GPTs at commit `0471612`; 923 O\*NET-SOC 2019 occupations | `make fetch` (pinned commit, SHA-256 `40c74f53…` checked) | paper, commit, SHA-256 |
 | `raw/lm_aioe.xlsx` | Robustness measure: Felten, Raj & Seamans (2023), Language-Modeling AIOE, 774 occupations on **SOC 2010** codes | `make fetch`: `Language Modeling AIOE and AIIE.xlsx` from github.com/AIOE-Data/AIOE at commit `adca5fc` (SHA-256 `ccdd1fb9…` checked; identical to the copy in Drive `07_Data/raw/`) | paper, commit, SHA-256 |
-| `interim/exposure_soc2018.csv` | primary measure: Eloundou **human-rated β** (E1 + 0.5·E2) on 6-digit SOC 2018 (O\*NET-SOC detail averaged) | `make exposure` / `src/00b_convert_exposure.py` | column used, aggregation rule |
+| `interim/exposure_soc2018.csv` | primary measure: Eloundou **human-rated β** (E1 + 0.5·E2) on 6-digit SOC 2018 (the main .00 occupation where it exists, otherwise O\*NET-SOC detail averaged) | `make exposure` / `src/00b_convert_exposure.py` | column used, aggregation rule |
 | `interim/exposure_{gpt4beta,lmaioe}_soc2018.csv` | robustness measures: Eloundou GPT-4-rated β; LM-AIOE mapped from SOC 2010 (split = copy, merge = mean) | `make robustness-exposure` | as above, plus the merged codes step 00b lists |
 | `raw/ipums/` | IPUMS CPS monthly samples 2020-01 to 2025-12, **71 months** (October 2025 is not offered by IPUMS); months that carried a supplement are IPUMS `…s` samples, the March ASEC is excluded (`.xml` DDI + `.dat.gz`, plus `_extract_request.json`) | `make ipums` / `src/04_ipums_extract.py` (needs `IPUMS_API_KEY`, CPS registration) | extract number + IPUMS CPS version from the DDI |
 
@@ -66,12 +67,40 @@ data/
   variable; step 03 assigns each CPS occupation code its SOC 2018 major group
   (largest-employment group where a code spans several) and step 05 selects
   the knowledge-intensive groups with it.
-- **Imputed earnings: no flag available.** IPUMS CPS accepts no EARNWEEK
-  allocation flag for the monthly samples: a probe of 30 candidate names on 27
-  September 2026 (including `QEARNWEE`, `QEARNWEEK`, `QHOURWAG`, `PRWERNAL` and
-  `UH_…` variants) was rejected for every name. Imputed earnings therefore stay
-  in the sample; step 05 prints a warning. Whether to treat this as a stated
-  limitation is a decision for the author and supervisor (brief, item 9).
+- **Imputed earnings are excluded (from run 9).** IPUMS does not accept
+  allocation flags as variable names (the 27 September 2026 probe of 30 names
+  such as `QEARNWEE` failed for that reason), but it delivers them through the
+  data-quality-flags option of each variable. Step 04 requests that option for
+  EARNWEEK, EARNWEEK2 and UHRSWORK1; step 05 drops records whose earnings
+  were allocated, logs the allocated share by quarter, and
+  `results_keep_allocated` keeps them for comparison.
+- **Hours.** Weekly earnings mix pay rates with hours, so the main earnings
+  sample is full-time workers (usual weekly hours at the main job, UHRSWORK1,
+  35 or more; "hours vary" is excluded). UHRSWORKORG is not usable for this:
+  its universe is hourly-paid workers only (run 10 kept 18,412 of 79,814
+  records with it). `results_hourly_all_hours` keeps everyone with reported
+  hours and uses log real hourly earnings.
+- **Top-codes.** Real weekly earnings are censored at one common real cap (the
+  lowest 2019-dollar value of the $2,884.61 nominal top-code over the sample
+  months), so the move from a fixed to a monthly top-code in 2023-24 does not
+  shift the post period; `results_drop_topcoded` drops the capped records.
+- **Post period.** `post` = 2022Q4 onwards in every equation (the event
+  studies already counted 2022Q4 as post). ChatGPT was released on 30 November
+  2022, so 2022Q4 is two-thirds pre-release; report it as a partial quarter.
+- **RQ2 sample.** The early-career employment share uses all employed
+  wage/salary records in every rotation group, weighted by WTFINL
+  (`analysis_sample_employment.parquet`), not only the ORG earners.
+- **Knowledge universe.** Step 05 selects the knowledge-intensive groups from
+  every Census code in the crosswalk (`interim/census_occ_codes.csv`), and logs
+  the records in codes that lack measures before dropping them.
+- **Crosswalk.** A Census "X" code (e.g. 13-20XX) covers only the SOCs no other
+  Census row names; group codes such as 25-1000 cover their whole group; SOCs
+  without OEWS employment get their broad (else minor) group's unpublished
+  remainder, never a median.
+- **Task shares.** Each part's score is the mean importance of its GWAs (the
+  old sum made the shares mostly a count of GWAs per part); the sum is kept as
+  `results_tasks_sum`, and `results_mapping_alt` uses the alternative mapping
+  in `mapping/`.
 
 ## Where the data lives
 
@@ -109,11 +138,16 @@ dissertation be added to the IPUMS bibliography (http://bibliography.ipums.org/)
 
 | Extract | Months | Variables | Status |
 |---|---|---|---|
-| #3 (`cps_00003`) | 71: January 2020 – December 2025 except October 2025; no ASEC | YEAR, MONTH, EARNWT, STATEFIP, AGE, SEX, EDUC, EMPSTAT, CLASSWKR, IND, OCC, EARNWEEK, EARNWEEK2 (+ IPUMS preselected identifiers and weights) | **used** (`07_Data/raw/ipums/`) |
+| #5 | same 71 months | as #3 plus UHRSWORK1 and WTFINL, with IPUMS data-quality flags for EARNWEEK, EARNWEEK2 and UHRSWORK1 | **used from run 11** (requested by the pipeline on 30 Sep 2026) |
+| #4 (`cps_00004`) | same 71 months | as #3 plus UHRSWORKORG (hourly-paid workers only) and WTFINL, with data-quality flags | run 10 only; superseded by #5 |
+| #3 (`cps_00003`) | 71: January 2020 – December 2025 except October 2025; no ASEC | YEAR, MONTH, EARNWT, STATEFIP, AGE, SEX, EDUC, EMPSTAT, CLASSWKR, IND, OCC, EARNWEEK, EARNWEEK2 (+ IPUMS preselected identifiers and weights) | used in runs 5-8 (`07_Data/raw/ipums/`) |
 | #2 (`cps_00002`) | same 71 months, same variables | same | duplicate of #3; not used |
 | #1 (`cps_00001`) | 20 months only | 13 variables | incomplete; archived, not used |
 
 Codebook facts the pipeline relies on: EARNWEEK2 "not in universe" is
-999999.99 and EARNWEEK 9999.99 (step 05 drops both); EARNWEEK2 is top-coded
-at 2884.61 until March 2023 and at a monthly value from April 2024 (step 05
-flags each month's maximum); EARNWT is the earner-study weight. Unrounded EARNWEEK exists only to March 2023, so step 05 uses EARNWEEK2, which covers all 71 months. ASECFLAG is 2 (March basic) in March samples; step 05 drops any ASECFLAG = 1 record as a safeguard.
+999999.99 and EARNWEEK 9999.99 (step 05 drops both); EARNWEEK2 carries the
+$2,884.61 top-code while it was fixed and monthly (dynamic) top-codes after
+it: IPUMS notes that from April 2023 to March 2024 only month-in-sample 4
+records were rounded and dynamically top-coded, and step 05 prints the DDI
+description to its log so the exact rule is on record (step 05 applies one
+common real cap, see Recorded decisions); EARNWT is the earner-study weight. Unrounded EARNWEEK exists only to March 2023, so step 05 uses EARNWEEK2, which covers all 71 months. ASECFLAG is 2 (March basic) in March samples; step 05 drops any ASECFLAG = 1 record as a safeguard.

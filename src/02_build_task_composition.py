@@ -1,12 +1,33 @@
 """
 02_build_task_composition.py — occupation-level four-part task composition + ILR.
 
-Implements proposal Sections 6.4 / 3.4:
+Implements the task-composition measure of the proposal (methods chapter):
   - aggregate O*NET Work Activities IMPORTANCE ratings into c1..c4
   - close to the simplex S^4
   - multiplicative zero replacement (Martin-Fernandez et al. 2003)
   - ILR balances z1,z2,z3 under the pre-specified sequential binary partition
   - ln T scale control
+
+Aggregation (--aggregate). The default, `mean`, gives each part the MEAN
+importance of its work activities (GWAs). Every occupation is rated on every
+GWA and importance is at least 1, so the older `sum` rule made each share
+mostly a count of how many GWAs the mapping puts in the part (12 / 13 / 8 / 8),
+not what the occupation does. `sum` is kept for the robustness check. ln T is
+the log of the summed importance under either rule.
+
+Zero replacement never triggers on importance ratings (they are at least 1);
+the log says so, and --delta cannot change the results.
+
+Release (--id-reference). The mapping names GWAs as O*NET 30.3 does. Older
+releases name some GWAs differently, so for any other release pass the 30.3
+folder here: mapping names are translated to O*NET Element IDs (stable across
+releases) in 30.3 and matched on Element ID in the release being built.
+
+Unrated occupations (--fill-from). O*NET 27.0 has no ratings yet for some
+occupations new in the 2019 O*NET-SOC taxonomy, among them 15-1252 Software
+Developers (CPS code 1021, about 6% of the knowledge-intensive records).
+--fill-from takes their ratings from a later release; the column task_release
+records which release each occupation's measures come from.
 
 Fails loudly if any element name in the mapping file is absent from the
 downloaded O*NET release, so a silent partial mapping can never occur.
@@ -43,6 +64,29 @@ def find_file(onet_dir: pathlib.Path, stem: str) -> pathlib.Path:
     if not hits:
         raise FileNotFoundError(f"{stem}.txt not found under {onet_dir}")
     return hits[0]
+
+
+def read_work_activities(onet_dir: pathlib.Path) -> pd.DataFrame | None:
+    wa = pd.read_csv(find_file(onet_dir, "Work Activities"), sep="\t", dtype=str)
+    wa.columns = [c.strip() for c in wa.columns]
+    needed = {"O*NET-SOC Code", "Element ID", "Element Name", "Scale ID", "Data Value"}
+    missing = needed - set(wa.columns)
+    if missing:
+        print(f"[task] unexpected Work Activities schema in {onet_dir}, missing {missing}",
+              file=sys.stderr)
+        return None
+    wa["Data Value"] = pd.to_numeric(wa["Data Value"], errors="coerce")
+    return wa
+
+
+def aggregate_parts(df: pd.DataFrame, how: str) -> tuple[pd.DataFrame, pd.Series]:
+    """Part scores per O*NET-SOC occupation (mean or sum of GWA ratings) and the
+    total rating T (always the sum over all mapped GWAs)."""
+    g = df.groupby(["O*NET-SOC Code", "task_part"])["Data Value"]
+    agg = (g.mean() if how == "mean" else g.sum()).unstack("task_part")
+    agg = agg.reindex(columns=PARTS).fillna(0.0)
+    T = df.groupby("O*NET-SOC Code")["Data Value"].sum().reindex(agg.index)
+    return agg, T
 
 
 def multiplicative_replacement(X: np.ndarray, delta: float) -> np.ndarray:
@@ -88,19 +132,20 @@ def main() -> int:
                     help="zero-replacement value; vary in sensitivity analysis")
     ap.add_argument("--scale", default="IM", choices=["IM", "LV"],
                     help="IM = Importance (default), LV = Level")
+    ap.add_argument("--aggregate", default="mean", choices=["mean", "sum"],
+                    help="mean (default) or sum of GWA ratings within each part")
+    ap.add_argument("--fill-from", default=None,
+                    help="O*NET release folder whose ratings are used for 6-digit SOCs the "
+                         "main release does not rate (flagged in column task_release)")
+    ap.add_argument("--id-reference", default=None,
+                    help="O*NET release folder whose GWA names the mapping uses; "
+                         "match the target release on Element ID through it")
     args = ap.parse_args()
 
     onet_dir = pathlib.Path(args.onet)
-    wa = pd.read_csv(find_file(onet_dir, "Work Activities"), sep="\t", dtype=str)
-    wa.columns = [c.strip() for c in wa.columns]
-
-    needed = {"O*NET-SOC Code", "Element Name", "Scale ID", "Data Value"}
-    missing = needed - set(wa.columns)
-    if missing:
-        print(f"[task] unexpected Work Activities schema, missing {missing}", file=sys.stderr)
+    wa = read_work_activities(onet_dir)
+    if wa is None:
         return 1
-
-    wa["Data Value"] = pd.to_numeric(wa["Data Value"], errors="coerce")
     wa = wa[wa["Scale ID"].str.strip() == args.scale].dropna(subset=["Data Value"])
 
     # The mapping is a methodological choice and lives under version control;
@@ -117,6 +162,40 @@ def main() -> int:
         return 2
     mp["key"] = norm(mp["element_name"])
     wa["key"] = norm(wa["Element Name"])
+    if args.id_reference:
+        ref = read_work_activities(pathlib.Path(args.id_reference))
+        if ref is None:
+            return 1
+        ids = (ref.assign(key=norm(ref["Element Name"]))
+                  .drop_duplicates("key").set_index("key")["Element ID"])
+        missing_ref = sorted(set(mp["key"]) - set(ids.index))
+        if missing_ref:
+            print(f"[task] MAPPING ERROR — not in the reference release: {missing_ref}",
+                  file=sys.stderr)
+            return 2
+        mp["key"] = mp["key"].map(ids).str.strip()
+        wa["key"] = wa["Element ID"].str.strip()
+        renamed = (wa.drop_duplicates("key").set_index("key")["Element Name"]
+                     .reindex(mp["key"]))
+        for old, new in zip(mp["element_name"], renamed):
+            if isinstance(new, str) and norm(pd.Series([new]))[0] != norm(pd.Series([old]))[0]:
+                print(f"[task] matched by Element ID: '{old}' is '{new}' in this release")
+
+    wa["task_release"] = str(onet_dir)
+    if args.fill_from:
+        fill = read_work_activities(pathlib.Path(args.fill_from))
+        if fill is None:
+            return 1
+        fill = fill[fill["Scale ID"].str.strip() == args.scale].dropna(subset=["Data Value"])
+        fill["key"] = (fill["Element ID"].str.strip() if args.id_reference
+                       else norm(fill["Element Name"]))
+        have = set(wa["O*NET-SOC Code"].str.slice(0, 7))
+        add = fill[~fill["O*NET-SOC Code"].str.slice(0, 7).isin(have)].copy()
+        add["task_release"] = str(args.fill_from)
+        socs = sorted(add["O*NET-SOC Code"].unique())
+        print(f"[task] {len(socs)} O*NET-SOC occupations have no ratings in {onet_dir} and "
+              f"take them from {args.fill_from} (column task_release): {socs}")
+        wa = pd.concat([wa, add], ignore_index=True)
 
     onet_keys = set(wa["key"])
     map_keys = set(mp["key"])
@@ -142,25 +221,31 @@ def main() -> int:
               "the composition to be exhaustive. Assign these before final estimation.")
 
     df = wa.merge(mp[["key", "task_part"]], on="key", how="inner")
-    agg = (df.groupby(["O*NET-SOC Code", "task_part"])["Data Value"]
-             .sum().unstack("task_part").reindex(columns=PARTS).fillna(0.0))
-
-    T = agg.sum(axis=1)
+    agg, T = aggregate_parts(df, args.aggregate)
+    print(f"[task] part score = {args.aggregate} of GWA {args.scale} ratings; GWAs per "
+          f"part: {mp['task_part'].value_counts().reindex(PARTS).tolist()}")
     keep = T > 0
     if (~keep).any():
         print(f"[task] dropping {(~keep).sum()} occupations with zero total weight")
     agg, T = agg[keep], T[keep]
 
+    n_zero = int((agg.to_numpy() == 0).sum())
+    print(f"[task] zero part scores: {n_zero}"
+          + (" (zero replacement not used; --delta has no effect)" if not n_zero else ""))
     C = multiplicative_replacement(agg.to_numpy(), args.delta)
     Z = ilr_balances(C)
 
     out = pd.DataFrame(C, columns=PARTS, index=agg.index)
     out[["z1", "z2", "z3"]] = Z
     out["ln_T"] = np.log(T.to_numpy())
+    out["task_release"] = wa.drop_duplicates("O*NET-SOC Code").set_index(
+        "O*NET-SOC Code")["task_release"].reindex(agg.index).to_numpy()
+    out["task_filled"] = (out["task_release"] != str(onet_dir)).astype(int)
     out["onet_soc"] = out.index
     out["soc2018"] = out["onet_soc"].str.slice(0, 7)  # 12-3456 detailed SOC
     out["onet_release_dir"] = str(onet_dir)
     out["zero_delta"] = args.delta
+    out["aggregate"] = args.aggregate
 
     pathlib.Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     out.reset_index(drop=True).to_csv(args.out, index=False)

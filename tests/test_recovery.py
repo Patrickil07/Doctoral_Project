@@ -17,9 +17,13 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 G_TASK, G_SHARE, PSI = 0.25, -0.20, 0.10
+# Nuisance terms the estimators must not mistake for effects: a time-invariant
+# exposure x early-career gradient (in z3 and wages) and a post-2022 change in
+# the price of z3 common to all workers.
+C_EJ, C_W, PI3 = -0.05, -0.10, 0.08
 
 
-def make_synthetic(path: pathlib.Path, seed: int = 11) -> None:
+def make_synthetic(path: pathlib.Path, seed: int = 11, c_ej: float = C_EJ) -> None:
     rng = np.random.default_rng(seed)
     n_occ = 40
     quarters = pd.period_range("2020Q1", "2025Q4", freq="Q").astype(str).tolist()  # sample period
@@ -36,9 +40,10 @@ def make_synthetic(path: pathlib.Path, seed: int = 11) -> None:
             for st in range(1, 4):
                 m = 40
                 early = rng.binomial(1, share, m)
-                z3 = o.z3b + G_TASK * o.exposure * early * post + rng.normal(0, .05, m)
-                lnw = (6.5 + .30 * z3 + PSI * z3 * early * post - .15 * early
-                       + rng.normal(0, .05, m))
+                z3 = (o.z3b + c_ej * o.exposure * early
+                      + G_TASK * o.exposure * early * post + rng.normal(0, .05, m))
+                lnw = (6.5 + .30 * z3 + PI3 * z3 * post + PSI * z3 * early * post
+                       - .15 * early + C_W * o.exposure * early + rng.normal(0, .05, m))
                 rows.append(pd.DataFrame({
                     "OCC": o.OCC, "exposure": o.exposure, "quarter": q, "post": post,
                     "early_career": early, "z1": o.z1, "z2": o.z2, "z3": z3,
@@ -68,9 +73,10 @@ def _pre_post(path: pathlib.Path) -> tuple[float, float]:
 
 
 def test_rq1_recovers_task_shift_with_flat_pretrend(results):
+    # Coefficients are relative to one (noisy) reference quarter, so compare
+    # the post-minus-pre change with the planted shift.
     pre, post = _pre_post(results / "rq1_task_composition.csv")
-    assert abs(pre) < 0.06
-    assert abs(post - G_TASK) < 0.08
+    assert abs((post - pre) - G_TASK) < 0.08
 
 
 def test_rq2_recovers_early_share_drop_with_flat_pretrend(results):
@@ -81,6 +87,22 @@ def test_rq2_recovers_early_share_drop_with_flat_pretrend(results):
 
 def test_rq3_recovers_psi3(results):
     r = pd.read_csv(results / "rq3_hedonic.csv")
-    psi = r[r.term.str.contains("z3") & r.term.str.contains("post")]
-    assert not psi.empty
-    assert abs(float(psi["estimate"].iloc[0]) - PSI) < 0.02
+    est = r.set_index("term")["estimate"]
+    assert abs(est["z3:early_career:post"] - PSI) < 0.02   # not PSI + PI3
+    assert abs(est["z3:post"] - PI3) < 0.02
+
+
+def test_rq1_ignores_time_invariant_exposure_gradient(tmp_path):
+    """A constant E x J gradient in z3 is not an event effect: the event-study
+    coefficients must be identical with and without it (same random draws).
+    Without the E and E x J main effects this fails by exactly C_EJ."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("est07", ROOT / "src" / "07_estimate.py")
+    est = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(est)
+    fits = []
+    for c in (0.0, C_EJ):
+        path = tmp_path / f"syn_{c}.parquet"
+        make_synthetic(path, c_ej=c)
+        fits.append(est.event_study(pd.read_parquet(path), "z3", with_tasks=False)["estimate"])
+    assert np.allclose(fits[0], fits[1], atol=1e-8)

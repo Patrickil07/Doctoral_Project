@@ -112,6 +112,66 @@ def test_step02_runs_with_committed_mapping(tmp_path):
     assert set(df["soc2018"]) == {"15-1252", "43-9061"}
 
 
+def test_step02_mean_aggregation_removes_the_gwa_count(tmp_path):
+    """With equal importance on every GWA, `mean` gives equal shares (the
+    barycentre, z = 0); `sum` gives shares proportional to GWAs per part."""
+    names = pd.read_csv(MAP)["element_name"].tolist()
+    d = tmp_path / "flat"
+    d.mkdir()
+    pd.DataFrame([{"O*NET-SOC Code": "15-1252.00", "Element ID": f"4.A.{i}",
+                   "Element Name": n, "Scale ID": "IM", "Data Value": 3.0}
+                  for i, n in enumerate(names)]).to_csv(d / "Work Activities.txt", sep="\t",
+                                                        index=False)
+    for how in ("mean", "sum"):
+        r = _run("02_build_task_composition.py", "--onet", str(d), "--aggregate", how,
+                 "--out", str(tmp_path / f"{how}.csv"))
+        assert r.returncode == 0, r.stderr
+    mean = pd.read_csv(tmp_path / "mean.csv").iloc[0]
+    total = pd.read_csv(tmp_path / "sum.csv").iloc[0]
+    np.testing.assert_allclose(mean[task.PARTS].astype(float), 0.25)
+    np.testing.assert_allclose(mean[["z1", "z2", "z3"]].astype(float), 0.0, atol=1e-12)
+    counts = pd.read_csv(MAP)["task_part"].value_counts().reindex(task.PARTS)
+    np.testing.assert_allclose(total[task.PARTS].astype(float), counts / counts.sum())
+    assert mean["ln_T"] == pytest.approx(total["ln_T"])
+
+
+def test_step02_matches_an_older_release_by_element_id(tmp_path):
+    """A GWA renamed between releases is matched through its Element ID."""
+    names = pd.read_csv(MAP)["element_name"].tolist()
+    ref = _fake_onet(tmp_path, names)                        # names as in 30.3
+    old = tmp_path / "old"
+    old.mkdir()
+    wa = pd.read_csv(ref / "Work Activities.txt", sep="\t")
+    wa.loc[wa["Element Name"] == "Working with Computers", "Element Name"] = \
+        "Interacting With Computers"
+    wa.to_csv(old / "Work Activities.txt", sep="\t", index=False)
+    r = _run("02_build_task_composition.py", "--onet", str(old), "--out", str(tmp_path / "a.csv"))
+    assert r.returncode == 2                                   # by name: stops
+    r = _run("02_build_task_composition.py", "--onet", str(old), "--id-reference", str(ref),
+             "--out", str(tmp_path / "b.csv"))
+    assert r.returncode == 0, r.stderr
+    assert "Interacting With Computers" in r.stdout
+    r2 = _run("02_build_task_composition.py", "--onet", str(ref), "--out", str(tmp_path / "c.csv"))
+    drop = ["onet_release_dir", "task_release"]
+    pd.testing.assert_frame_equal(pd.read_csv(tmp_path / "b.csv").drop(columns=drop),
+                                  pd.read_csv(tmp_path / "c.csv").drop(columns=drop))
+
+
+def test_step02_fills_unrated_occupations_from_a_later_release(tmp_path):
+    names = pd.read_csv(MAP)["element_name"].tolist()
+    later = _fake_onet(tmp_path, names)                      # rates 15-1252 and 43-9061
+    early = tmp_path / "early"
+    early.mkdir()
+    wa = pd.read_csv(later / "Work Activities.txt", sep="\t")
+    wa[wa["O*NET-SOC Code"] != "15-1252.00"].to_csv(early / "Work Activities.txt", sep="\t",
+                                                     index=False)
+    r = _run("02_build_task_composition.py", "--onet", str(early), "--fill-from", str(later),
+             "--out", str(tmp_path / "f.csv"))
+    assert r.returncode == 0, r.stderr
+    out = pd.read_csv(tmp_path / "f.csv").set_index("soc2018")
+    assert out.loc["15-1252", "task_filled"] == 1 and out.loc["43-9061", "task_filled"] == 0
+
+
 def test_step02_fails_loudly_on_unknown_mapping_entry(tmp_path):
     names = pd.read_csv(MAP)["element_name"].tolist()
     onet = _fake_onet(tmp_path, names[1:])            # O*NET lacks one mapped element
@@ -125,14 +185,77 @@ def test_step02_fails_loudly_on_unknown_mapping_entry(tmp_path):
 def test_wildcard_expansion():
     xw = pd.DataFrame({"cps_occ": [800, 1005], "soc_pattern": ["13-20XX", "15-1252"]})
     out = xwalk.expand_wildcards(xw, pd.Series(["13-2011", "13-2051", "13-1111", "15-1252"]))
-    got = set(map(tuple, out.to_numpy().tolist()))
+    got = set(map(tuple, out[["cps_occ", "soc2018"]].to_numpy().tolist()))
     assert got == {(800, "13-2011"), (800, "13-2051"), (1005, "15-1252")}
+
+
+def test_wildcard_skips_socs_with_their_own_census_code():
+    """'13-20XX' is the residual group: 13-2011 has its own code (0800), so the
+    residual code 0960 must not get it too (audit F1)."""
+    xw = pd.DataFrame({"cps_occ": [800, 960, 9620, 9570],
+                       "soc_pattern": ["13-2011", "13-20XX", "53-7062", "53-7XXX"]})
+    known = pd.Series(["13-2011", "13-2051", "13-2099", "53-7011", "53-7062", "53-7064"])
+    out = xwalk.expand_wildcards(xw, known)
+    assert out.groupby("soc2018")["cps_occ"].nunique().max() == 1
+    assert set(out.loc[out.cps_occ == 960, "soc2018"]) == {"13-2051", "13-2099"}
+    assert set(out.loc[out.cps_occ == 9570, "soc2018"]) == {"53-7011", "53-7064"}
+    assert (out["share"] == 1).all()
+
+
+def test_more_specific_wildcard_wins_and_duplicates_split_employment():
+    xw = pd.DataFrame({"cps_occ": [1, 2, 3, 4], "soc_pattern": ["15-12XX", "15-125X", "15-1299",
+                                                                "15-1299"]})
+    out = xwalk.expand_wildcards(xw, pd.Series(["15-1211", "15-1251", "15-1252", "15-1299"]))
+    assert set(out.loc[out.cps_occ == 2, "soc2018"]) == {"15-1251", "15-1252"}
+    assert set(out.loc[out.cps_occ == 1, "soc2018"]) == {"15-1211"}
+    assert out.loc[out.soc2018 == "15-1299", "share"].tolist() == [0.5, 0.5]
+
+
+def test_minor_group_census_codes_expand():
+    """'25-1000' (postsecondary teachers) covers 25-1011 ... 25-1199 (audit F3)."""
+    xw = pd.DataFrame({"cps_occ": [2205], "soc_pattern": ["25-1000"]})
+    out = xwalk.expand_wildcards(xw, pd.Series(["25-1011", "25-1199", "25-2011"]))
+    assert set(out["soc2018"]) == {"25-1011", "25-1199"}
+
+
+def test_missing_oews_employment_comes_from_the_broad_group():
+    oews = pd.DataFrame({"soc2018": ["15-1250", "15-1251", "15-1200", "15-1211", "15-1250"],
+                         "emp": [1000.0, 400.0, 5000.0, 100.0, 1000.0]})   # duplicated row
+    df = pd.DataFrame({"soc2018": ["15-1251", "15-1252", "15-1253", "15-1212", "17-9999"],
+                       "emp": [400.0, np.nan, np.nan, np.nan, np.nan]})
+    out = xwalk.fill_employment(df, oews).set_index("soc2018")["emp"]
+    assert out["15-1252"] == out["15-1253"] == 300.0        # (1000 - 400) / 2
+    # minor group less the published (400, 100) and broad-imputed (2 x 300) SOCs
+    assert out["15-1212"] == 5000.0 - 400.0 - 100.0 - 600.0
+    assert out["17-9999"] == 0.0
+
+
+def test_onet_detail_codes_prefer_the_main_occupation():
+    t = pd.DataFrame({"onet_soc": ["11-1011.00", "11-1011.03", "15-1299.08", "15-1299.09"],
+                      "soc2018": ["11-1011", "11-1011", "15-1299", "15-1299"],
+                      "x": [1.0, 3.0, 2.0, 4.0]})
+    out = xwalk.collapse_onet_soc(t, ["x"]).set_index("soc2018")["x"]
+    assert out["11-1011"] == 1.0 and out["15-1299"] == 3.0
+    e = pd.DataFrame({"soc": ["11-1011.00", "11-1011.03", "15-1299.08", "15-1299.09", "13-2011"],
+                      "exposure": [1.0, 3.0, 2.0, 4.0, 5.0]})
+    got = conv.collapse_onet_soc(e, "soc").groupby("soc")["exposure"].mean()
+    assert got.to_dict() == {"11-1011": 1.0, "13-2011": 5.0, "15-1299": 3.0}
+
+
+def test_terciles_split_employment_in_thirds():
+    lo, hi = xwalk.weighted_terciles(pd.Series([0.1, 0.2, 0.3, 0.4]),
+                                     pd.Series([1.0, 1.0, 1.0, 3.0]))
+    assert (lo, hi) == (0.2, 0.3)       # thirds: {0.1, 0.2}, {0.3}, {0.4}
+
+
+def test_knowledge_major_lists_agree():
+    assert xwalk.KNOWLEDGE_MAJOR == sample.KNOWLEDGE_MAJOR
 
 
 def test_broad_soc_codes_expand_like_wildcards():
     xw = pd.DataFrame({"cps_occ": [1050, 1010], "soc_pattern": ["15-1230", "15-1251"]})
     out = xwalk.expand_wildcards(xw, pd.Series(["15-1231", "15-1232", "15-1251"]))
-    got = set(map(tuple, out.to_numpy().tolist()))
+    got = set(map(tuple, out[["cps_occ", "soc2018"]].to_numpy().tolist()))
     assert got == {(1050, "15-1231"), (1050, "15-1232"), (1010, "15-1251")}
 
 
@@ -187,8 +310,8 @@ def test_eloundou_onet_soc_codes_collapse_to_six_digit(tmp_path):
         "human_rating_beta": [0.40, 0.60, 0.45, 0.52]}).to_csv(f, index=False)
     out = conv.load_exposure(f, "human_rating_beta").set_index("soc")
     assert list(out.index) == ["13-2011", "15-1211", "15-1252"]
-    assert out.loc["15-1211", "exposure"] == pytest.approx(0.50)     # mean of detail
-    assert out.loc["15-1211", "n_source"] == 2
+    assert out.loc["15-1211", "exposure"] == pytest.approx(0.40)     # the .00 occupation
+    assert out.loc["15-1211", "n_source"] == 1
     gpt4 = conv.load_exposure(f, "dv_rating_beta").set_index("soc")
     assert gpt4.loc["15-1252", "exposure"] == pytest.approx(0.87)
     with pytest.raises(ValueError):
@@ -345,9 +468,12 @@ def test_prefilter_counts_each_step():
                       "ASECFLAG": pd.array([2, 1, 2, None, None, None], dtype="Int64"),
                       "STATEFIP": pd.array([6, 6, 36, 36, 48, 48], dtype="Int64"),
                       "EARNWT": [5.0, 5.0, 5.0, 0.0, 7.0, 3.0]})
-    out, counts = sample.prefilter(d, sample.SAMPLE_START)
-    assert counts == [6, 5, 4, 3]            # non-March months (ASECFLAG missing) kept
-    assert list(zip(out.YEAR, out.MONTH)) == [(2020, 3), (2022, 1), (2023, 7)]
+    d["CLASSWKR"] = [22, 22, 22, 22, 14, 22]      # 14 = self-employed
+    d["EMPSTAT"] = [10, 10, 10, 12, 10, 21]       # 21 = unemployed
+    d["OCC"] = [1021, 1021, 1021, 1021, 1021, 9130]
+    out, counts = sample.prefilter(d, sample.SAMPLE_START, {1021})
+    assert counts == [6, 5, 4, 3, 2, 2]      # non-March months (ASECFLAG missing) kept
+    assert list(zip(out.YEAR, out.MONTH)) == [(2020, 3), (2021, 6)]   # EARNWT 0 kept (RQ2)
     assert out["STATEFIP"].dtype == "int64" and out["ASECFLAG"].dtype == "float64"
 
 
@@ -393,7 +519,7 @@ def test_absorbed_fixed_effects_match_dummy_regression():
                       "cl": rng.integers(0, 40, n)})
     d["y"] = 0.7 * d["x"] + d["g"] * 0.1 + d["h"] * 0.3 + rng.normal(size=n)
     dummy = smf.wls("y ~ x + C(g) + C(h)", data=d, weights=d["EARNWT"]).fit()
-    b, _, _ = est._fit_absorbed(d, "y", ["x"], ["g", "h"], "cl")
+    b, _, _, _ = est._fit_absorbed(d, "y", ["x"], ["g", "h"], "cl")
     assert b["x"] == pytest.approx(dummy.params["x"], abs=1e-8)
 
 
@@ -416,8 +542,10 @@ def test_common_early_career_shock_is_not_attributed_to_exposure():
     d["ln_w"] = 6.5 + 0.3 * d["early_career"] * post + rng.normal(0, .1, n)
     res = est.event_study(d, "ln_w", with_tasks=False)
     # without these effects the post-period estimates average ~+0.30 (the whole
-    # common shock); with them they are noise around zero
-    assert abs(res.loc[res["period"] == "post", "estimate"].mean()) < 0.02
+    # common shock); with them the post-minus-pre change is noise around zero
+    # (both periods are measured against the one, noisy, reference quarter)
+    pre = res.loc[res["period"] == "pre", "estimate"].mean()
+    assert abs(res.loc[res["period"] == "post", "estimate"].mean() - pre) < 0.02
     assert (res["estimate"] / res["se"]).abs().max() < 4
 
 
@@ -429,3 +557,56 @@ def test_estimation_specs_run(fake_sample):
     assert rq3["term"].str.contains("z3:early_career:post").any()
     rq2 = est.early_share(fake_sample)
     assert len(rq2) == 11 and rq2["se"].notna().all()
+
+
+def test_quarters_from_ref():
+    t = est.quarters_from_ref(pd.Series(["2022Q2", "2022Q3", "2022Q4", "2020Q1"]))
+    assert list(t) == [-1, 0, 1, -10]
+
+
+def test_rq1_trend_model_removes_planted_linear_pretrend():
+    """Model 2: a linear E x J x t drift with no break is absorbed by the trend
+    term, so post coefficients are ~0; the baseline shows it as a pre-trend."""
+    rng = np.random.default_rng(5)
+    occs = np.arange(40)
+    expo = dict(zip(occs, rng.uniform(0, 1, 40)))
+    quarters = [str(p) for p in pd.period_range("2020Q1", "2025Q4", freq="Q")]
+    n = 40000
+    d = pd.DataFrame({"OCC": rng.choice(occs, n), "quarter": rng.choice(quarters, n),
+                      "STATEFIP": rng.choice([6, 36, 48], n), "SEX": rng.choice([1, 2], n),
+                      "AGE": rng.integers(22, 56, n), "EDUC": rng.choice([73, 111], n),
+                      "EARNWT": rng.uniform(.5, 2, n), "early_career": rng.integers(0, 2, n)})
+    d["exposure"] = d["OCC"].map(expo)
+    t = est.quarters_from_ref(d["quarter"])
+    d["z3"] = 0.02 * d["exposure"] * d["early_career"] * t + rng.normal(0, .05, n)
+    base = est.event_study(d, "z3", with_tasks=False)
+    res, V = est.event_study(d, "z3", with_tasks=False, trend=True, return_vcov=True)
+    assert est.pretrend_test(base)["max_abs_z"] > 5
+    trend = res.loc[res["period"] == "trend", "estimate"].item()
+    assert trend == pytest.approx(0.02, abs=0.003)
+    assert set(res["period"]) == {"post", "trend"}
+    assert res.loc[res["period"] == "post", "estimate"].abs().max() < 0.03
+    assert list(V.index) == list(res["term"])
+
+
+def test_joint_wald_matches_hand_computation():
+    res = pd.DataFrame({"term": ["a", "b", "c"], "estimate": [0.2, -0.1, 0.5],
+                        "period": ["pre", "pre", "post"]})
+    V = pd.DataFrame(np.diag([0.01, 0.04, 0.09]), index=res["term"], columns=res["term"])
+    w = est.joint_wald(res, V)
+    assert w["wald_df"] == 2
+    assert w["wald_chi2"] == pytest.approx(0.2 ** 2 / 0.01 + 0.1 ** 2 / 0.04)
+
+
+def test_one_real_topcode_binds_in_every_month():
+    cpi = pd.DataFrame({"year": [2020, 2023], "month": [1, 6], "cpi": [258.0, 305.0]})
+    cap = sample.real_topcode(cpi, base=255.0)
+    assert cap == pytest.approx(2884.61 * 255.0 / 305.0)
+    # the nominal cap in every month is at or above the common real cap
+    assert (sample.TOPCODE_NOMINAL * 255.0 / cpi["cpi"] >= cap - 1e-9).all()
+
+
+def test_allocation_flag_columns_found_and_bands_parsed():
+    d = pd.DataFrame(columns=["EARNWEEK2", "QEARNWEE", "QUHRSWOR", "OCC"])
+    assert sample.allocation_flags(d, "EARNWEEK2") == ["QEARNWEE"]
+    assert sample.parse_bands("22-28,40-55") == ((22, 28), (40, 55))

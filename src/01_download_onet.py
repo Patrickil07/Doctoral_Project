@@ -9,9 +9,10 @@ Usage:
     python src/01_download_onet.py --release 30.3
     python src/01_download_onet.py --release 28.0 --outdir data/raw/onet_28_0
 
-Pin ONE release for the main specification (proposal Section 6.6: "hold task
-composition fixed at a single pre-period O*NET release"). Download a second,
-later release only for the time-varying robustness check.
+Pin ONE release for the main specification (proposal: "hold task
+composition fixed at a single pre-period O*NET release"): the pipeline uses
+27.0 (August 2022, before ChatGPT). 30.3 is downloaded too, for the robustness
+check and as the reference for GWA names (step 02 --id-reference).
 """
 import argparse
 import hashlib
@@ -27,6 +28,7 @@ BASE = "https://www.onetcenter.org/dl_files/database"
 UA = "PipelineParadox-DBA-research/1.0 (academic use)"
 # SHA-256 of each release archive as first downloaded (GitHub run, 27 Sep 2026).
 KNOWN_SHA256 = {
+    "27.0": "b5b29984e51803df347aa867a5bec3d8b99f7110a2db8366354c120d92821e6f",  # 30 Sep 2026
     "30.3": "7758ec966fd91895b3d290b83c9f1f1d46730d37fdda4faac67104d1c0d2a780",
 }
 

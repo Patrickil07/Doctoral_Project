@@ -41,3 +41,19 @@ Step 02 **stops** if any name here is missing from the O\*NET release, and
   These are defensible defaults, not the only reasonable choices: state them
   in Chapter 3, and report the sensitivity check in which the three are
   dropped (the previous mapping, commit `c8958f4`).
+
+## Alternative mapping (robustness)
+
+`onet_activity_map_alt.csv` differs from the main file in three GWAs, following
+the audit of 30 September 2026:
+
+- `Interpreting the Meaning of Information for Others` → `c1_nonroutine_analytic`
+  (Acemoglu & Autor 2011 count it as non-routine analytic).
+- `Communicating with Supervisors, Peers, or Subordinates` and
+  `Communicating with People Outside the Organization` →
+  `c2_nonroutine_interpersonal` (communication is interpersonal work, not a
+  codified routine).
+
+The pipeline runs it as the `results_mapping_alt` specification. Neither file
+is anchored GWA by GWA in a published scheme; citing one for each assignment
+(or justifying the departures) is still to be done in Chapter 3.

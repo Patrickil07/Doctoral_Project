@@ -1,8 +1,12 @@
-# Runs the full CPS / O*NET pipeline (steps 00 -> 07 and robustness checks) on a
+# Runs the full CPS / O*NET pipeline (steps 00 -> 07, robustness checks, the RQ1
+# specification menu, step 08 Honest DiD, then step 06 figures and Chapter 4
+# tables from the saved results) on a
 # GitHub-hosted machine. Every input is downloaded fresh; IPUMS microdata never
 # leaves the runner. Only aggregate outputs (result tables, sample-construction
 # log, step logs) are kept: as a run artifact (90 days) and, permanently, as a
-# folder runs/<date>_run<N>_<commit>/ on the `results` branch of this repository.
+# folder runs/<date>_run<N>_<commit>/ on the `results` branch of this repository,
+# and a copy of that folder in Google Drive (07_Data/out/pipeline_runs/) when the
+# RCLONE_DRIVE_TOKEN secret is set.
 #
 # Needs the repository secret IPUMS_API_KEY (Settings -> Secrets and variables ->
 # Actions). Start it from the Actions tab: "run-pipeline" -> "Run workflow".
@@ -12,8 +16,8 @@ on:
   workflow_dispatch:
     inputs:
       extract_id:
-        description: "IPUMS CPS extract number (re-submitted automatically if expired)"
-        default: "3"
+        description: "IPUMS CPS extract number (re-submitted automatically if expired); empty = request a new extract"
+        default: "5"
 
 permissions:
   contents: write   # to save results on the `results` branch
@@ -49,13 +53,24 @@ jobs:
         run: python src/00_fetch_public_inputs.py | tee logs/00_fetch.log
       - name: 00b exposure (Eloundou human-rated beta -> SOC 2018)
         run: python src/00b_convert_exposure.py | tee logs/00b_exposure.log
-      - name: 01 O*NET 30.3
-        run: python src/01_download_onet.py --release 30.3 | tee logs/01_onet.log
+      # Main specification: O*NET 27.0 (August 2022), the last release before
+      # ChatGPT, so the task measures cannot reflect post-2022 changes. 30.3 is
+      # kept for the robustness run and as the reference for GWA names.
+      - name: 01 O*NET 27.0 (main) and 30.3 (robustness)
+        run: |
+          { python src/01_download_onet.py --release 27.0
+            python src/01_download_onet.py --release 30.3; } 2>&1 | tee logs/01_onet.log
+        shell: bash -eo pipefail {0}
       - name: 04 IPUMS CPS extract
-        run: python src/04_ipums_extract.py --extract-id ${{ inputs.extract_id || '3' }} | tee logs/04_ipums.log
+        run: |
+          if [ -n "${{ inputs.extract_id }}" ]; then
+            python src/04_ipums_extract.py --extract-id "${{ inputs.extract_id }}"
+          else
+            python src/04_ipums_extract.py
+          fi 2>&1 | tee logs/04_ipums.log
 
       - name: 02 task composition
-        run: python src/02_build_task_composition.py --onet data/raw/onet_30_3 | tee logs/02_tasks.log
+        run: python src/02_build_task_composition.py --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 --fill-from data/raw/onet_30_3 | tee logs/02_tasks.log
       - name: 03 crosswalk to CPS occupations
         run: python src/03_crosswalk.py | tee logs/03_crosswalk.log
       - name: 05 estimation sample
@@ -67,17 +82,89 @@ jobs:
         run: python src/07_estimate.py --drop-pandemic --out data/out/results_drop_pandemic | tee logs/07_drop_pandemic.log
       - name: Robustness - GPT-4-rated exposure
         run: |
+          {
           python src/00b_convert_exposure.py --column dv_rating_beta --out data/interim/exposure_gpt4beta_soc2018.csv
-          python src/03_crosswalk.py --exposure data/interim/exposure_gpt4beta_soc2018.csv --out data/interim/occ_measures_gpt4beta.csv
+          python src/03_crosswalk.py --exposure data/interim/exposure_gpt4beta_soc2018.csv --out data/interim/occ_measures_gpt4beta.csv --codes-out data/interim/census_occ_codes_gpt4beta.csv
           python src/05_build_sample.py --occ data/interim/occ_measures_gpt4beta.csv --out data/out/analysis_sample_gpt4beta.parquet
           python src/07_estimate.py --sample data/out/analysis_sample_gpt4beta.parquet --out data/out/results_exposure_gpt4beta
+          } 2>&1 | tee logs/robustness_gpt4beta.log
         shell: bash -eo pipefail {0}
       - name: Robustness - LM-AIOE
         run: |
+          {
           python src/00b_convert_exposure.py --exposure data/raw/lm_aioe.xlsx --column "Language Modeling AIOE" --source-soc 2010 --out data/interim/exposure_lmaioe_soc2018.csv
-          python src/03_crosswalk.py --exposure data/interim/exposure_lmaioe_soc2018.csv --out data/interim/occ_measures_lmaioe.csv
+          python src/03_crosswalk.py --exposure data/interim/exposure_lmaioe_soc2018.csv --out data/interim/occ_measures_lmaioe.csv --codes-out data/interim/census_occ_codes_lmaioe.csv
           python src/05_build_sample.py --occ data/interim/occ_measures_lmaioe.csv --out data/out/analysis_sample_lmaioe.parquet
           python src/07_estimate.py --sample data/out/analysis_sample_lmaioe.parquet --out data/out/results_exposure_lmaioe
+          } 2>&1 | tee logs/robustness_lmaioe.log
+        shell: bash -eo pipefail {0}
+
+      # Sample-construction variants from the audit of 30 Sep 2026: each rebuilds
+      # the sample with one rule changed and re-estimates RQ1-RQ4.
+      - name: Robustness - sample variants
+        run: |
+          variant() {   # variant <name> <step 05 options...>
+            name="$1"; shift
+            {
+              python src/05_build_sample.py "$@" --out "data/out/analysis_sample_$name.parquet"
+              python src/07_estimate.py --sample "data/out/analysis_sample_$name.parquet" --out "data/out/results_$name"
+            } 2>&1 | tee "logs/robustness_$name.log"
+            rm -f "data/out/analysis_sample_$name.parquet" "data/out/analysis_sample_${name}_employment.parquet"
+          }
+          variant no_soc43 --majors 13,15,17,19,23,27
+          variant add_soc11_25_29 --majors 11,13,15,17,19,23,25,27,29,43
+          variant midband --include-midband
+          variant bands_22_28_40_55 --bands 22-28,40-55
+          variant keep_allocated --keep-allocated
+          variant drop_topcoded --drop-topcoded
+          variant hourly_all_hours --hours all
+        shell: bash -eo pipefail {0}
+
+      # Task-measure variants: O*NET 30.3 (post-2022 release), the older
+      # summed-importance aggregation, and the alternative GWA mapping.
+      - name: Robustness - task-measure variants
+        run: |
+          measure() {   # measure <name> <step 02 options...>
+            name="$1"; shift
+            {
+              python src/02_build_task_composition.py "$@" --out "data/interim/task_composition_$name.csv"
+              python src/03_crosswalk.py --tasks "data/interim/task_composition_$name.csv" --out "data/interim/occ_measures_$name.csv" --codes-out "data/interim/census_occ_codes_$name.csv"
+              python src/05_build_sample.py --occ "data/interim/occ_measures_$name.csv" --out "data/out/analysis_sample_$name.parquet"
+              python src/07_estimate.py --sample "data/out/analysis_sample_$name.parquet" --out "data/out/results_$name"
+            } 2>&1 | tee "logs/robustness_$name.log"
+            rm -f "data/out/analysis_sample_$name.parquet" "data/out/analysis_sample_${name}_employment.parquet"
+          }
+          measure tasks_onet30 --onet data/raw/onet_30_3
+          measure tasks_sum --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 --fill-from data/raw/onet_30_3 --aggregate sum
+          measure mapping_alt --onet data/raw/onet_27_0 --id-reference data/raw/onet_30_3 --fill-from data/raw/onet_30_3 --map mapping/onet_activity_map_alt.csv
+        shell: bash -eo pipefail {0}
+
+      - name: RQ1 Model 2 - linear exposure x early-career trend
+        run: python src/07_estimate.py --rq1-trend --rq1-only --out data/out/results_rq1_trend | tee logs/07_rq1_trend.log
+      - name: RQ1 Model 3 - window from 2021Q4
+        run: python src/07_estimate.py --start-quarter 2021Q4 --rq1-only --out data/out/results_rq1_from_2021q4 | tee logs/07_rq1_from_2021q4.log
+
+      # Rambachan & Roth sensitivity (reference R implementation). Optional
+      # like step 06: a failure here never stops the results being saved.
+      - uses: r-lib/actions/setup-r@v2
+        continue-on-error: true
+        with:
+          use-public-rspm: true
+      - name: 08 Honest DiD for RQ1 (Models 1 and 3)
+        continue-on-error: true
+        timeout-minutes: 120   # never let this optional step use up the job's time limit
+        run: |
+          sudo apt-get install -y -qq libglpk40   # system library the Rglpk binary links to
+          Rscript .github/install_honestdid.R
+          for d in data/out/results data/out/results_rq1_from_2021q4; do
+            Rscript src/08_honest_did.R --results "$d"
+          done | tee logs/08_honest_did.log
+
+      # A figure bug must never cost a finished run its results: on failure the
+      # results are still saved, and build-chapter4 can redo this step later.
+      - name: 06 figures and Chapter 4 tables (from saved results only)
+        continue-on-error: true
+        run: python src/06_figures_tables.py --root . --out data/out/chapter4 | tee logs/06_figures_tables.log
 
       - name: Record provenance
         if: always()
@@ -89,6 +176,7 @@ jobs:
             echo "date_utc: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             [ -f data/raw/ipums/_extract_used.json ] && cat data/raw/ipums/_extract_used.json
             [ -f data/raw/_public_inputs_manifest.json ] && cat data/raw/_public_inputs_manifest.json
+            [ -f data/raw/onet_27_0/_manifest.json ] && cat data/raw/onet_27_0/_manifest.json
             [ -f data/raw/onet_30_3/_manifest.json ] && cat data/raw/onet_30_3/_manifest.json
           } > logs/provenance.txt || true
 
@@ -99,13 +187,16 @@ jobs:
           name: pipeline-results
           path: |
             data/out/results*/*.csv
+            data/out/chapter4/
             data/interim/occ_measures*.csv
+            data/interim/census_occ_codes.csv
             logs/
           retention-days: 90
 
       # Permanent copy: artifacts expire, the `results` branch does not.
       # Same aggregate files as the artifact; no microdata.
       - name: Save results to the results branch
+        id: save
         run: |
           dest="runs/$(date -u +%Y-%m-%d)_run${GITHUB_RUN_NUMBER}_${GITHUB_SHA::7}"
           out="$RUNNER_TEMP/results-branch"
@@ -119,10 +210,22 @@ jobs:
             git -C "$out" rm -rfq --ignore-unmatch .
           fi
           mkdir -p "$out/$dest"
-          cp --parents data/out/results*/*.csv data/interim/occ_measures*.csv "$out/$dest/"
+          cp --parents data/out/results*/*.csv data/interim/occ_measures*.csv data/interim/census_occ_codes.csv "$out/$dest/"
           cp -r logs "$out/$dest/"
+          [ -d data/out/chapter4 ] && cp -r data/out/chapter4 "$out/$dest/chapter4"
           cd "$out"
           git add -A
           git commit -q -m "Results of run ${GITHUB_RUN_NUMBER} (commit ${GITHUB_SHA::7})"
           git push -q origin HEAD:refs/heads/results
           echo "saved to branch results: $dest"
+          echo "dir=$out/$dest" >> "$GITHUB_OUTPUT"
+          echo "name=${dest#runs/}" >> "$GITHUB_OUTPUT"
+
+      # Same files again, copied to Google Drive (skipped if the token secret is
+      # not set). A Drive problem never fails a run: the results branch has it all.
+      - name: Copy the run to Google Drive
+        continue-on-error: true
+        env:
+          RCLONE_DRIVE_TOKEN: ${{ secrets.RCLONE_DRIVE_TOKEN }}
+          GDRIVE_FOLDER_ID: ${{ vars.GDRIVE_FOLDER_ID || '12_f3R1HHxOasFozCCVDC5bv_w3AisX7r' }}
+        run: .github/sync_drive.sh "${{ steps.save.outputs.dir }}" "${{ steps.save.outputs.name }}"

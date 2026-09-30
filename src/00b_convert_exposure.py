@@ -11,8 +11,9 @@ Columns: human_rating_* (annotators) and dv_rating_* (GPT-4), each as
 alpha = E1, beta = E1 + 0.5*E2, gamma = E1 + E2. The default is
 human_rating_beta; --column switches rater or definition for robustness.
 
-O*NET-SOC detail codes are collapsed to 6-digit SOC by the unweighted mean,
-the same rule step 03 applies to the task measures.
+O*NET-SOC detail codes are collapsed to 6-digit SOC with the same rule step 03
+applies to the task measures: the score of the main occupation (.00) where it
+exists, otherwise the unweighted mean of the detail codes.
 
 Measures on SOC 2010 codes (Felten, Raj & Seamans' AIOE and LM-AIOE) need
 --source-soc 2010. They are mapped with the BLS 2010-to-2018 SOC crosswalk:
@@ -45,12 +46,33 @@ SOC = r"^\d{2}-\d{4}$"
 ONET_SOC = r"^\d{2}-\d{4}\.\d{2}$"
 
 
+def collapse_onet_soc(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    """Keep only the main O*NET-SOC occupation (.00) of each 6-digit SOC that has
+    one, and cut every O*NET-SOC code to 6 digits. SOCs without a .00 code keep
+    all their detail codes (averaged later). Rows already on 6-digit SOC pass
+    through unchanged.
+
+    Averaging niche detail occupations (e.g. Chief Sustainability Officers)
+    with equal weight to the main occupation (Chief Executives) would give them
+    far more weight than their employment warrants.
+    """
+    code = df[col].astype(str)
+    detail = code.str.match(ONET_SOC, na=False)
+    six = code.where(~detail, code.str.slice(0, 7))
+    main = detail & code.str.endswith(".00")
+    has_main = set(six[main])
+    keep = ~detail | main | ~six.isin(has_main)
+    out = df[keep].copy()
+    out[col] = six[keep]
+    return out
+
+
 def load_exposure(path: pathlib.Path, column: str, sheet: str | None = None
                   ) -> pd.DataFrame:
     """Read an exposure file (.csv or .xlsx) into columns soc, exposure, n_source.
 
     The code column is the first whose name contains 'soc'. O*NET-SOC detail
-    codes (15-1211.01) are averaged up to 6-digit SOC (15-1211).
+    codes (15-1211.01) are collapsed to 6-digit SOC (15-1211) by `collapse_onet_soc`.
     """
     if path.suffix.lower() in (".xlsx", ".xls"):
         df = pd.read_excel(path, sheet_name=sheet or 0)
@@ -67,9 +89,10 @@ def load_exposure(path: pathlib.Path, column: str, sheet: str | None = None
 
     detail = out["soc"].str.match(ONET_SOC, na=False)
     if detail.any():
-        out.loc[detail, "soc"] = out.loc[detail, "soc"].str.slice(0, 7)
-        print(f"[exposure] {int(detail.sum())} O*NET-SOC codes collapsed to 6-digit "
-              f"SOC by unweighted mean")
+        n_before = int(detail.sum())
+        out = collapse_onet_soc(out, "soc")
+        print(f"[exposure] {n_before} O*NET-SOC codes collapsed to 6-digit SOC "
+              f"(.00 score where it exists, else the mean of the detail codes)")
 
     bad = ~out["soc"].str.match(SOC, na=False) | out["exposure"].isna()
     if bad.any():

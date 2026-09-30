@@ -67,7 +67,25 @@ def get(url: str, email: str) -> bytes:
         return r.read()
 
 
+# SHA-256 of the default downloads as used in runs 5-8 (27-30 Sep 2026). A
+# changed file stops the run instead of silently changing the inputs; CPI-U is
+# not pinned because BLS appends a month to it every month.
+PINNED_SHA256 = {
+    "oews_national": "83ad09f19e62104a39024d36ed67cae5c3f7d5b42ff165ca656e0e35241bcf31",
+    "census_soc_crosswalk": "fca2818d691c32777a4cd733a9ab77c8c5bd47adcacd7ac3aa149bebd45b5f7f",
+    "soc_2010_to_2018_crosswalk":
+        "f3a847561562d3e5a30eb848f2902a5f7b02e9c48b3d7f2cc8879899fbc242a7",
+}
+DEFAULT_URLS = {"oews_national": OEWS_URL.format(yy="21"), "census_soc_crosswalk": XWALK_URL,
+                "soc_2010_to_2018_crosswalk": SOC_XWALK_URL}
+
+
 def record(manifest: dict, name: str, url: str, blob: bytes) -> None:
+    sha = hashlib.sha256(blob).hexdigest()
+    if url == DEFAULT_URLS.get(name) and sha != PINNED_SHA256[name]:
+        raise ValueError(f"{name}: checksum {sha} does not match the pinned "
+                         f"{PINNED_SHA256[name]} ({url} has changed); check the file "
+                         "and update PINNED_SHA256 deliberately")
     manifest[name] = {"url": url, "sha256": hashlib.sha256(blob).hexdigest(),
                       "bytes": len(blob),
                       "downloaded_utc": datetime.now(timezone.utc).isoformat()}
