@@ -16,7 +16,7 @@ on:
   # A change to the copy code re-copies every run, which also tests it.
   push:
     branches: [main, claude/project-thread-snm3tj]
-    paths: [.github/sync_drive.sh, .github/workflows/sync-drive.yml]
+    paths: [.github/sync_drive.sh, .github/rclone_token.py, .github/workflows/sync-drive.yml]
 
 permissions:
   contents: read

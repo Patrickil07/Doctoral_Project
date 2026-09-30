@@ -23,6 +23,9 @@ fi
 
 command -v rclone >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq rclone; }
 
+token=$(python3 "$(dirname "$0")/rclone_token.py")
+echo "::add-mask::$token"
+
 conf="$RUNNER_TEMP/rclone.conf"
 umask 077
 cat > "$conf" <<EOF
@@ -30,7 +33,7 @@ cat > "$conf" <<EOF
 type = drive
 scope = drive
 root_folder_id = $GDRIVE_FOLDER_ID
-token = $RCLONE_DRIVE_TOKEN
+token = $token
 EOF
 trap 'rm -f "$conf"' EXIT
 
