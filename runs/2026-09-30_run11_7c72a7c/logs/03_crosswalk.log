@@ -1,0 +1,42 @@
+[xwalk] OEWS lists 7 codes on several rows; keeping the largest employment for each: {'13-1020': [439020, 439020], '13-2020': [58340, 58340], '29-2010': [318780, 318780], '31-1120': [3366480, 3366480], '39-7010': [30980, 30980], '47-4090': [30920, 30920], '51-2090': [1328550, 1328550]}
+[xwalk] sheet '2018 Census Occ Code List', header row 4: '2018 Census Code' -> '2018 SOC Code' (568 pairs, 38 wildcard SOC codes)
+[xwalk] 3 Census codes matched no task-data SOC (no measures for them): [(9800, '55-101X'), (9810, '55-201X'), (9825, '55-301X')]
+[xwalk] 568 Census rows -> 802 Census x detailed-SOC pairs after wildcard expansion; 802 distinct SOCs
+[xwalk] pairs lacking task data 3.5% | exposure 2.2% | OEWS employment 3.0%
+[xwalk] OEWS employment for 13-1021 imputed from broad 13-1020: 146,340
+[xwalk] OEWS employment for 13-1022 imputed from broad 13-1020: 146,340
+[xwalk] OEWS employment for 13-1023 imputed from broad 13-1020: 146,340
+[xwalk] OEWS employment for 13-2022 imputed from broad 13-2020: 29,170
+[xwalk] OEWS employment for 13-2023 imputed from broad 13-2020: 29,170
+[xwalk] OEWS employment for 21-1011 imputed from none: 0
+[xwalk] OEWS employment for 21-1014 imputed from none: 0
+[xwalk] OEWS employment for 25-2056 imputed from none: 0
+[xwalk] OEWS employment for 25-9042 imputed from none: 0
+[xwalk] OEWS employment for 25-9043 imputed from none: 0
+[xwalk] OEWS employment for 29-2011 imputed from broad 29-2010: 159,390
+[xwalk] OEWS employment for 29-2012 imputed from broad 29-2010: 159,390
+[xwalk] OEWS employment for 31-1121 imputed from broad 31-1120: 1,683,240
+[xwalk] OEWS employment for 31-1122 imputed from broad 31-1120: 1,683,240
+[xwalk] OEWS employment for 39-7011 imputed from broad 39-7010: 15,490
+[xwalk] OEWS employment for 39-7012 imputed from broad 39-7010: 15,490
+[xwalk] OEWS employment for 45-3031 imputed from none: 0
+[xwalk] OEWS employment for 47-4091 imputed from broad 47-4090: 15,460
+[xwalk] OEWS employment for 47-4099 imputed from broad 47-4090: 15,460
+[xwalk] OEWS employment for 51-2022 imputed from minor 51-2000: 5
+[xwalk] OEWS employment for 51-2023 imputed from minor 51-2000: 5
+[xwalk] OEWS employment for 51-2092 imputed from broad 51-2090: 1,328,550
+[xwalk] OEWS employment for 53-1042 imputed from none: 0
+[xwalk] OEWS employment for 53-1043 imputed from none: 0
+[xwalk] WARNING: 8 SOCs have no OEWS employment at any level (weight 0): ['21-1011', '21-1014', '25-2056', '25-9042', '25-9043', '45-3031', '53-1042', '53-1043']
+[xwalk] exposure tercile cuts (knowledge occupations, employment-weighted): 0.479, 0.567
+[xwalk] 568 Census codes (537 with task and exposure measures) written to data/interim/census_occ_codes.csv
+[xwalk] 537 CPS occupation codes written to data/interim/occ_measures.csv
+            z3  exposure
+count  537.000   537.000
+mean     0.030     0.293
+std      0.060     0.207
+min     -0.154     0.000
+25%     -0.003     0.106
+50%      0.029     0.278
+75%      0.063     0.458
+max      0.296     0.844

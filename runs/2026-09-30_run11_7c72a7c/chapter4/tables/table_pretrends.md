@@ -1,0 +1,64 @@
+**Pre-period coefficients by outcome and specification**
+
+| Outcome | Specification | pre quarters | max abs z | quarter of max | p<0.05 | p<0.10 | joint p |
+|---|---|---|---|---|---|---|---|
+| RQ1 | Main specification | 10 | 2.14 | 2021Q1 | 1 | 2 | 0.384 |
+| RQ1 | Pandemic window dropped | 5 | 1.35 | 2021Q4 | 0 | 0 | 0.527 |
+| RQ1 | GPT-4-rated exposure | 10 | 2.31 | 2020Q3 | 1 | 1 | 0.433 |
+| RQ1 | LM-AIOE exposure | 10 | 2.44 | 2020Q3 | 2 | 3 | 0.227 |
+| RQ1 | RQ1 Model 2: linear trend | 0 |  |  |  |  |  |
+| RQ1 | RQ1 Model 3: from 2021Q4 | 3 | 1.35 | 2021Q4 | 0 | 0 | 0.534 |
+| RQ1 | Without SOC 43 | 10 | 2.17 | 2021Q2 | 2 | 2 | 0.230 |
+| RQ1 | Adding SOC 11, 25, 29 | 10 | 2.41 | 2021Q1 | 2 | 4 | 0.511 |
+| RQ1 | Ages 31-34 included | 10 | 1.94 | 2021Q1 | 0 | 1 | 0.326 |
+| RQ1 | Bands 22-28 vs 40-55 | 10 | 1.36 | 2021Q4 | 0 | 0 | 0.724 |
+| RQ1 | Allocated earnings kept | 10 | 1.38 | 2021Q4 | 0 | 0 | 0.117 |
+| RQ1 | Top-coded earnings dropped | 10 | 2.07 | 2021Q1 | 1 | 2 | 0.142 |
+| RQ1 | Hourly earnings, all hours | 10 | 2.46 | 2020Q2 | 2 | 4 | 0.240 |
+| RQ1 | O*NET 30.3 task measures | 10 | 2.24 | 2021Q1 | 1 | 2 | 0.516 |
+| RQ1 | Summed-importance task shares | 10 | 2.14 | 2021Q1 | 1 | 2 | 0.384 |
+| RQ1 | Alternative GWA mapping | 10 | 1.6 | 2021Q2 | 0 | 0 | 0.583 |
+| RQ2 | Main specification | 10 | 2.92 | 2020Q4 | 3 | 3 | <0.001 |
+| RQ2 | Pandemic window dropped | 5 | 2.07 | 2021Q4 | 1 | 1 | 0.066 |
+| RQ2 | GPT-4-rated exposure | 10 | 2.69 | 2021Q4 | 2 | 3 | <0.001 |
+| RQ2 | LM-AIOE exposure | 10 | 3.18 | 2020Q4 | 3 | 4 | <0.001 |
+| RQ2 | Without SOC 43 | 10 | 1.23 | 2020Q4 | 0 | 0 | 0.637 |
+| RQ2 | Adding SOC 11, 25, 29 | 10 | 2.22 | 2020Q2 | 3 | 3 | 0.005 |
+| RQ2 | Ages 31-34 included | 10 | 2.53 | 2020Q4 | 3 | 4 | <0.001 |
+| RQ2 | Bands 22-28 vs 40-55 | 10 | 4.22 | 2020Q4 | 3 | 4 | <0.001 |
+| RQ2 | Allocated earnings kept | 10 | 2.92 | 2020Q4 | 3 | 3 | <0.001 |
+| RQ2 | Top-coded earnings dropped | 10 | 2.92 | 2020Q4 | 3 | 3 | <0.001 |
+| RQ2 | Hourly earnings, all hours | 10 | 2.92 | 2020Q4 | 3 | 3 | <0.001 |
+| RQ2 | O*NET 30.3 task measures | 10 | 2.92 | 2020Q4 | 3 | 3 | <0.001 |
+| RQ2 | Summed-importance task shares | 10 | 2.92 | 2020Q4 | 3 | 3 | <0.001 |
+| RQ2 | Alternative GWA mapping | 10 | 2.92 | 2020Q4 | 3 | 3 | <0.001 |
+| RQ4 (no task controls) | Main specification | 10 | 2.01 | 2021Q2 | 1 | 1 | 0.268 |
+| RQ4 (no task controls) | Pandemic window dropped | 5 | 1.46 | 2021Q3 | 0 | 0 | 0.670 |
+| RQ4 (no task controls) | GPT-4-rated exposure | 10 | 0.98 | 2020Q2 | 0 | 0 | 0.144 |
+| RQ4 (no task controls) | LM-AIOE exposure | 10 | 0.75 | 2022Q2 | 0 | 0 | 0.982 |
+| RQ4 (no task controls) | Without SOC 43 | 10 | 1.36 | 2020Q1 | 0 | 0 | 0.342 |
+| RQ4 (no task controls) | Adding SOC 11, 25, 29 | 10 | 1.01 | 2021Q2 | 0 | 0 | 0.526 |
+| RQ4 (no task controls) | Ages 31-34 included | 10 | 2.26 | 2021Q2 | 1 | 1 | 0.240 |
+| RQ4 (no task controls) | Bands 22-28 vs 40-55 | 10 | 1.54 | 2021Q1 | 0 | 0 | 0.343 |
+| RQ4 (no task controls) | Allocated earnings kept | 10 | 0.69 | 2021Q4 | 0 | 0 | 0.991 |
+| RQ4 (no task controls) | Top-coded earnings dropped | 10 | 2.55 | 2021Q3 | 1 | 2 | 0.123 |
+| RQ4 (no task controls) | Hourly earnings, all hours | 10 | 1.53 | 2022Q2 | 0 | 0 | 0.127 |
+| RQ4 (no task controls) | O*NET 30.3 task measures | 10 | 2.01 | 2021Q2 | 1 | 1 | 0.268 |
+| RQ4 (no task controls) | Summed-importance task shares | 10 | 2.01 | 2021Q2 | 1 | 1 | 0.268 |
+| RQ4 (no task controls) | Alternative GWA mapping | 10 | 2.01 | 2021Q2 | 1 | 1 | 0.268 |
+| RQ4 (task controls) | Main specification | 10 | 1.38 | 2021Q2 | 0 | 0 | 0.265 |
+| RQ4 (task controls) | Pandemic window dropped | 5 | 1.05 | 2021Q3 | 0 | 0 | 0.654 |
+| RQ4 (task controls) | GPT-4-rated exposure | 10 | 1.13 | 2020Q2 | 0 | 0 | 0.236 |
+| RQ4 (task controls) | LM-AIOE exposure | 10 | 1.18 | 2021Q1 | 0 | 0 | 0.700 |
+| RQ4 (task controls) | Without SOC 43 | 10 | 1.27 | 2020Q1 | 0 | 0 | 0.393 |
+| RQ4 (task controls) | Adding SOC 11, 25, 29 | 10 | 1.01 | 2020Q1 | 0 | 0 | 0.468 |
+| RQ4 (task controls) | Ages 31-34 included | 10 | 1.63 | 2021Q2 | 0 | 0 | 0.177 |
+| RQ4 (task controls) | Bands 22-28 vs 40-55 | 10 | 1.75 | 2022Q1 | 0 | 1 | 0.446 |
+| RQ4 (task controls) | Allocated earnings kept | 10 | 1.09 | 2020Q2 | 0 | 0 | 0.865 |
+| RQ4 (task controls) | Top-coded earnings dropped | 10 | 2.19 | 2021Q3 | 1 | 1 | 0.117 |
+| RQ4 (task controls) | Hourly earnings, all hours | 10 | 1.79 | 2020Q2 | 0 | 1 | 0.220 |
+| RQ4 (task controls) | O*NET 30.3 task measures | 10 | 1.43 | 2021Q2 | 0 | 0 | 0.225 |
+| RQ4 (task controls) | Summed-importance task shares | 10 | 1.38 | 2021Q2 | 0 | 0 | 0.265 |
+| RQ4 (task controls) | Alternative GWA mapping | 10 | 1.39 | 2021Q2 | 0 | 0 | 0.324 |
+
+Counts of individually significant pre-period coefficients, the largest |estimate/SE|, and the p-value of the joint Wald test that all pre-period coefficients are zero (clustered covariance; blank for runs made before step 07 saved it).

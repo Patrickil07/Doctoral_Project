@@ -1,0 +1,64 @@
+**Pooled estimands: average post-period coefficient and post-minus-pre contrast**
+
+| Outcome | Specification | Post average | Post minus pre | p | Holm p |
+|---|---|---|---|---|---|
+| RQ1 | Main specification | -0.023 (0.024) | 0.013 (0.012) | 0.270 | 1.000 |
+| RQ1 | Pandemic window dropped | -0.023 (0.024) | 0.002 (0.014) | 0.880 |  |
+| RQ1 | GPT-4-rated exposure | 0.000 (0.021) | 0.005 (0.008) | 0.486 |  |
+| RQ1 | LM-AIOE exposure | -0.007 (0.005) | -0.000 (0.002) | 0.908 |  |
+| RQ1 | RQ1 Model 2: linear trend | -0.030 (0.025) |  |  |  |
+| RQ1 | RQ1 Model 3: from 2021Q4 | -0.023 (0.024) | 0.000 (0.015) | 0.977 |  |
+| RQ1 | Without SOC 43 | -0.028 (0.024) | 0.012 (0.010) | 0.242 |  |
+| RQ1 | Adding SOC 11, 25, 29 | -0.021 (0.015) | 0.011 (0.008) | 0.188 |  |
+| RQ1 | Ages 31-34 included | -0.018 (0.022) | 0.011 (0.012) | 0.342 |  |
+| RQ1 | Bands 22-28 vs 40-55 | -0.018 (0.029) | 0.010 (0.014) | 0.490 |  |
+| RQ1 | Allocated earnings kept | -0.006 (0.023) | 0.003 (0.009) | 0.724 |  |
+| RQ1 | Top-coded earnings dropped | -0.019 (0.021) | 0.014 (0.012) | 0.244 |  |
+| RQ1 | Hourly earnings, all hours | -0.033 (0.023) | 0.009 (0.012) | 0.445 |  |
+| RQ1 | O*NET 30.3 task measures | -0.022 (0.024) | 0.013 (0.012) | 0.282 |  |
+| RQ1 | Summed-importance task shares | -0.023 (0.024) | 0.013 (0.012) | 0.269 |  |
+| RQ1 | Alternative GWA mapping | -0.018 (0.028) | 0.015 (0.013) | 0.246 |  |
+| RQ2 | Main specification | 0.039 (0.040) | -0.022 (0.036) | 0.552 | 1.000 |
+| RQ2 | Pandemic window dropped | 0.037 (0.040) | 0.005 (0.033) | 0.877 |  |
+| RQ2 | GPT-4-rated exposure | 0.071** (0.033) | 0.021 (0.018) | 0.244 |  |
+| RQ2 | LM-AIOE exposure | 0.020** (0.009) | 0.001 (0.006) | 0.829 |  |
+| RQ2 | Without SOC 43 | -0.032 (0.063) | -0.053 (0.043) | 0.212 |  |
+| RQ2 | Adding SOC 11, 25, 29 | 0.011 (0.028) | -0.043* (0.022) | 0.052 |  |
+| RQ2 | Ages 31-34 included | 0.042 (0.035) | -0.015 (0.034) | 0.668 |  |
+| RQ2 | Bands 22-28 vs 40-55 | 0.061 (0.043) | -0.021 (0.035) | 0.552 |  |
+| RQ2 | Allocated earnings kept | 0.039 (0.040) | -0.022 (0.036) | 0.552 |  |
+| RQ2 | Top-coded earnings dropped | 0.039 (0.040) | -0.022 (0.036) | 0.552 |  |
+| RQ2 | Hourly earnings, all hours | 0.039 (0.040) | -0.022 (0.036) | 0.552 |  |
+| RQ2 | O*NET 30.3 task measures | 0.039 (0.040) | -0.022 (0.036) | 0.552 |  |
+| RQ2 | Summed-importance task shares | 0.039 (0.040) | -0.022 (0.036) | 0.552 |  |
+| RQ2 | Alternative GWA mapping | 0.039 (0.040) | -0.022 (0.036) | 0.552 |  |
+| RQ4 (no task controls) | Main specification | -0.192 (0.169) | -0.012 (0.062) | 0.847 | 1.000 |
+| RQ4 (no task controls) | Pandemic window dropped | -0.193 (0.170) | -0.011 (0.069) | 0.878 |  |
+| RQ4 (no task controls) | GPT-4-rated exposure | 0.110 (0.158) | 0.064 (0.044) | 0.140 |  |
+| RQ4 (no task controls) | LM-AIOE exposure | 0.003 (0.046) | -0.018 (0.013) | 0.151 |  |
+| RQ4 (no task controls) | Without SOC 43 | -0.037 (0.230) | 0.081 (0.089) | 0.364 |  |
+| RQ4 (no task controls) | Adding SOC 11, 25, 29 | 0.010 (0.132) | 0.011 (0.056) | 0.839 |  |
+| RQ4 (no task controls) | Ages 31-34 included | -0.125 (0.135) | -0.003 (0.056) | 0.954 |  |
+| RQ4 (no task controls) | Bands 22-28 vs 40-55 | -0.309* (0.178) | -0.053 (0.064) | 0.406 |  |
+| RQ4 (no task controls) | Allocated earnings kept | -0.012 (0.149) | -0.020 (0.055) | 0.719 |  |
+| RQ4 (no task controls) | Top-coded earnings dropped | -0.195 (0.170) | -0.008 (0.057) | 0.884 |  |
+| RQ4 (no task controls) | Hourly earnings, all hours | -0.113 (0.132) | -0.107 (0.084) | 0.200 |  |
+| RQ4 (no task controls) | O*NET 30.3 task measures | -0.192 (0.169) | -0.012 (0.062) | 0.847 |  |
+| RQ4 (no task controls) | Summed-importance task shares | -0.192 (0.169) | -0.012 (0.062) | 0.847 |  |
+| RQ4 (no task controls) | Alternative GWA mapping | -0.192 (0.169) | -0.012 (0.062) | 0.847 |  |
+| RQ4 (task controls) | Main specification | -0.121 (0.182) | -0.025 (0.058) | 0.660 | 1.000 |
+| RQ4 (task controls) | Pandemic window dropped | -0.120 (0.183) | 0.015 (0.068) | 0.821 |  |
+| RQ4 (task controls) | GPT-4-rated exposure | 0.095 (0.156) | 0.061 (0.048) | 0.202 |  |
+| RQ4 (task controls) | LM-AIOE exposure | 0.016 (0.051) | -0.019 (0.013) | 0.144 |  |
+| RQ4 (task controls) | Without SOC 43 | 0.051 (0.216) | 0.083 (0.091) | 0.361 |  |
+| RQ4 (task controls) | Adding SOC 11, 25, 29 | 0.005 (0.133) | -0.003 (0.049) | 0.950 |  |
+| RQ4 (task controls) | Ages 31-34 included | -0.059 (0.142) | -0.011 (0.051) | 0.837 |  |
+| RQ4 (task controls) | Bands 22-28 vs 40-55 | -0.279 (0.188) | -0.066 (0.061) | 0.282 |  |
+| RQ4 (task controls) | Allocated earnings kept | 0.048 (0.158) | -0.005 (0.053) | 0.919 |  |
+| RQ4 (task controls) | Top-coded earnings dropped | -0.143 (0.183) | -0.027 (0.059) | 0.644 |  |
+| RQ4 (task controls) | Hourly earnings, all hours | -0.059 (0.155) | -0.102 (0.079) | 0.198 |  |
+| RQ4 (task controls) | O*NET 30.3 task measures | -0.123 (0.182) | -0.023 (0.057) | 0.686 |  |
+| RQ4 (task controls) | Summed-importance task shares | -0.121 (0.182) | -0.025 (0.058) | 0.661 |  |
+| RQ4 (task controls) | Alternative GWA mapping | -0.129 (0.180) | -0.020 (0.058) | 0.727 |  |
+
+Post average = mean of the post-period coefficients (relative to the reference quarter 2022Q3 only). Post minus pre = mean post coefficient minus mean pre coefficient, which does not depend on the choice of reference quarter. Clustered standard errors in parentheses from the saved covariance matrices; p-values from the normal distribution. Holm p adjusts the four main-specification post-minus-pre contrasts for multiple testing. Model 2 has no pre-period coefficients. * p<0.10, ** p<0.05, *** p<0.01.

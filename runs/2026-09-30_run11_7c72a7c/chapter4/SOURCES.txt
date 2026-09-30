@@ -1,0 +1,19 @@
+built_from: /home/runner/work/Doctoral_Project/Doctoral_Project
+figure_code_commit: 7c72a7cf93f13c95ba5bceb3df8be30115cb3966
+specifications:
+  results: Main specification
+  results_drop_pandemic: Pandemic window dropped
+  results_exposure_gpt4beta: GPT-4-rated exposure
+  results_exposure_lmaioe: LM-AIOE exposure
+  results_rq1_trend: RQ1 Model 2: linear trend
+  results_rq1_from_2021q4: RQ1 Model 3: from 2021Q4
+  results_no_soc43: Without SOC 43
+  results_add_soc11_25_29: Adding SOC 11, 25, 29
+  results_midband: Ages 31-34 included
+  results_bands_22_28_40_55: Bands 22-28 vs 40-55
+  results_keep_allocated: Allocated earnings kept
+  results_drop_topcoded: Top-coded earnings dropped
+  results_hourly_all_hours: Hourly earnings, all hours
+  results_tasks_onet30: O*NET 30.3 task measures
+  results_tasks_sum: Summed-importance task shares
+  results_mapping_alt: Alternative GWA mapping

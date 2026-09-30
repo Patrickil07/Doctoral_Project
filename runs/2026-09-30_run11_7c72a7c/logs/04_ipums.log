@@ -1,0 +1,6 @@
+[ipums] WARNING: IPUMS has no monthly sample for 2025-10; that month is not requested
+[ipums] requesting 71 monthly samples (cps2020_01s to cps2025_12s), 15 variables
+[ipums] submitted extract #5 with variables ['YEAR', 'MONTH', 'EARNWT', 'STATEFIP', 'AGE', 'SEX', 'EDUC', 'EMPSTAT', 'CLASSWKR', 'IND', 'OCC', 'EARNWEEK', 'EARNWEEK2', 'UHRSWORK1', 'WTFINL']; waiting…
+[ipums] downloaded to data/raw/ipums
+[ipums] RECORD THIS IN THE METHODOLOGY APPENDIX: IPUMS CPS extract #5, collection=cps
+[ipums] cite the exact IPUMS CPS version shown in the DDI codebook

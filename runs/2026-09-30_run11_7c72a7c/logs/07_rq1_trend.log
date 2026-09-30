@@ -1,0 +1,5 @@
+[est] RQ1 — task composition of employment held (Eq. 5)
+      pre-trend check: {'n_pre': 0, 'warning': 'no pre-period coefficients parsed'}
+      linear E x J x t trend = +0.0033 (se 0.0018, p=0.0690); post coefficients are deviations from it
+
+[est] RQ1 results -> data/out/results_rq1_trend

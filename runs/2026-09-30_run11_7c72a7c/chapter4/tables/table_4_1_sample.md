@@ -1,0 +1,21 @@
+**Table 4.1 Sample construction (CPS basic monthly, 2020-2025)**
+
+| Step | Records | Dropped |
+|---|---|---|
+| raw person-month records | 7,200,731 |  |
+| 2020-01 onwards (2018 Census occupation codes) | 7,200,731 | 0 |
+| basic monthly records (no ASEC) | 7,200,731 | 0 |
+| wage/salary workers | 3,206,011 | 3,994,720 |
+| employed | 3,007,177 | 198,834 |
+| knowledge-intensive SOC groups | 818,114 | 2,189,063 |
+| in 22-30 or 35-55 age bands | 520,141 | 297,973 |
+| with task and exposure measures (RQ2 employment sample) | 489,194 | 30,947 |
+| in ORG earner universe | 124,292 | 364,902 |
+| valid weekly earnings | 124,154 | 138 |
+| non-allocated earnings (Hirsch-Schumacher) | 84,936 | 39,218 |
+| full-time (usual hours 35+) | 76,261 | 8,675 |
+| earnings sample (RQ1, RQ3, RQ4) | 76,261 | 0 |
+|   of which early-career (22-30) | 22,572 |  |
+|   of which experienced (35-55) | 53,689 |  |
+
+Counts of person-month records from the step 05 sample log (an ORG respondent can appear twice, a basic-monthly respondent up to eight times).

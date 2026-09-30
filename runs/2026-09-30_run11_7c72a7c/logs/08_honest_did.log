@@ -1,0 +1,30 @@
+[honest] rq1_task_composition.csv: 10 pre and 13 post quarters, target = average post coefficient
+[honest] 9 Mbar values on 4 cores in 3.2 min
+ Mbar          lb         ub   method excludes_zero
+   NA -0.06983139 0.02386190 Original         FALSE
+ 0.00 -0.06844360 0.02247412     C-LF         FALSE
+ 0.25 -0.19094326 0.14497377     C-LF         FALSE
+ 0.50 -0.34598189 0.30096943     C-LF         FALSE
+ 0.75 -0.49958497 0.45744360     C-LF         FALSE
+ 1.00 -0.65653766 0.61056817     C-LF         FALSE
+ 1.25 -0.81349034 0.76752086     C-LF         FALSE
+ 1.50 -0.96661491 0.92064543     C-LF         FALSE
+ 1.75 -1.12356760 1.08142623     C-LF         FALSE
+ 2.00 -1.28434840 1.23837892     C-LF         FALSE
+[honest] breakdown Mbar: none (the robust set includes zero already at Mbar = 0)
+[honest] written to data/out/results/rq1_task_composition_honest_did.csv 
+[honest] rq1_task_composition.csv: 3 pre and 13 post quarters, target = average post coefficient
+[honest] 9 Mbar values on 4 cores in 1.0 min
+ Mbar          lb         ub   method excludes_zero
+   NA -0.07005935 0.02381128 Original         FALSE
+ 0.00 -0.06866894 0.02242087     C-LF         FALSE
+ 0.25 -0.18277090 0.13748167     C-LF         FALSE
+ 0.50 -0.32180271 0.28322536     C-LF         FALSE
+ 0.75 -0.46754639 0.42896904     C-LF         FALSE
+ 1.00 -0.61185182 0.57327447     C-LF         FALSE
+ 1.25 -0.75759550 0.71901815     C-LF         FALSE
+ 1.50 -0.89950383 0.86092648     C-LF         FALSE
+ 1.75 -1.04524752 1.00667016     C-LF         FALSE
+ 2.00 -1.19099120 1.15241385     C-LF         FALSE
+[honest] breakdown Mbar: none (the robust set includes zero already at Mbar = 0)
+[honest] written to data/out/results_rq1_from_2021q4/rq1_task_composition_honest_did.csv 

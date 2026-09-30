@@ -1,0 +1,10 @@
+[task] 17 O*NET-SOC occupations have no ratings in data/raw/onet_27_0 and take them from data/raw/onet_30_3 (column task_release): ['11-2033.00', '11-3013.00', '11-3013.01', '11-9072.00', '13-2022.00', '15-1252.00', '19-3039.02', '19-3039.03', '25-2056.00', '25-3031.00', '25-9042.00', '25-9043.00', '29-1214.00', '29-2036.00', '33-1091.00', '53-3051.00', '53-3053.00']
+[task] part score = mean of GWA IM ratings; GWAs per part: [12, 13, 8, 8]
+[task] zero part scores: 0 (zero replacement not used; --delta has no effect)
+[task] 890 O*NET-SOC occupations written to data/interim/task_composition.csv
+[task] composition means:
+c1_nonroutine_analytic         0.2840
+c2_nonroutine_interpersonal    0.2393
+c3_routine_cognitive           0.2712
+c4_residual                    0.2054
+[task] z3 (analytic:routine balance) mean=0.0345 sd=0.0574
