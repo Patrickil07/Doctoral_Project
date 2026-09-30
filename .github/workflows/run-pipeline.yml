@@ -17,7 +17,7 @@ on:
     inputs:
       extract_id:
         description: "IPUMS CPS extract number (re-submitted automatically if expired); empty = request a new extract"
-        default: ""
+        default: "4"
 
 permissions:
   contents: write   # to save results on the `results` branch

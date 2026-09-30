@@ -136,7 +136,8 @@ dissertation be added to the IPUMS bibliography (http://bibliography.ipums.org/)
 
 | Extract | Months | Variables | Status |
 |---|---|---|---|
-| #3 (`cps_00003`) | 71: January 2020 – December 2025 except October 2025; no ASEC | YEAR, MONTH, EARNWT, STATEFIP, AGE, SEX, EDUC, EMPSTAT, CLASSWKR, IND, OCC, EARNWEEK, EARNWEEK2 (+ IPUMS preselected identifiers and weights) | **used** (`07_Data/raw/ipums/`) |
+| #4 (`cps_00004`) | 71: January 2020 – December 2025 except October 2025; no ASEC | as #3 plus UHRSWORKORG and WTFINL, with IPUMS data-quality flags for EARNWEEK, EARNWEEK2 and UHRSWORKORG | **used from run 9** (requested by the pipeline on 30 Sep 2026) |
+| #3 (`cps_00003`) | 71: January 2020 – December 2025 except October 2025; no ASEC | YEAR, MONTH, EARNWT, STATEFIP, AGE, SEX, EDUC, EMPSTAT, CLASSWKR, IND, OCC, EARNWEEK, EARNWEEK2 (+ IPUMS preselected identifiers and weights) | used in runs 5-8 (`07_Data/raw/ipums/`) |
 | #2 (`cps_00002`) | same 71 months, same variables | same | duplicate of #3; not used |
 | #1 (`cps_00001`) | 20 months only | 13 variables | incomplete; archived, not used |
 

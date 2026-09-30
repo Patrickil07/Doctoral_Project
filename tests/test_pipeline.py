@@ -203,8 +203,8 @@ def test_minor_group_census_codes_expand():
 
 
 def test_missing_oews_employment_comes_from_the_broad_group():
-    oews = pd.DataFrame({"soc2018": ["15-1250", "15-1251", "15-1200", "15-1211"],
-                         "emp": [1000.0, 400.0, 5000.0, 100.0]})
+    oews = pd.DataFrame({"soc2018": ["15-1250", "15-1251", "15-1200", "15-1211", "15-1250"],
+                         "emp": [1000.0, 400.0, 5000.0, 100.0, 1000.0]})   # duplicated row
     df = pd.DataFrame({"soc2018": ["15-1251", "15-1252", "15-1253", "15-1212", "17-9999"],
                        "emp": [400.0, np.nan, np.nan, np.nan, np.nan]})
     out = xwalk.fill_employment(df, oews).set_index("soc2018")["emp"]

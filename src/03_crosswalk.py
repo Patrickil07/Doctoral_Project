@@ -50,7 +50,15 @@ def load_oews(path: pathlib.Path) -> pd.DataFrame:
     out["emp"] = pd.to_numeric(out["emp"].astype(str).str.replace(r"[^\d.]", "", regex=True),
                                errors="coerce")
     out = out.dropna(subset=["emp"])
-    return out[out["soc2018"].str.match(r"^\d{2}-\d{4}$", na=False)]
+    out = out[out["soc2018"].str.match(r"^\d{2}-\d{4}$", na=False)]
+    # A code can appear on more than one row (e.g. listed at two aggregation
+    # levels). Keep one row per code, so merges never duplicate SOC pairs.
+    dup = out[out["soc2018"].duplicated(keep=False)]
+    if len(dup):
+        print(f"[xwalk] OEWS lists {dup['soc2018'].nunique()} codes on several rows; "
+              f"keeping the largest employment for each: "
+              f"{dup.groupby('soc2018')['emp'].apply(list).to_dict()}")
+    return out.groupby("soc2018", as_index=False)["emp"].max()
 
 
 def load_crosswalk(path: pathlib.Path, occ_col: str | None = None,
@@ -172,7 +180,7 @@ def fill_employment(df: pd.DataFrame, oews: pd.DataFrame) -> pd.DataFrame:
     listed. Replaces a fill with the median of all SOCs, which invented weights.
     """
     df = df.copy()
-    pub = oews.set_index("soc2018")["emp"]
+    pub = oews.groupby("soc2018")["emp"].max()
     miss = sorted(set(df.loc[df["emp"].isna(), "soc2018"]))
     filled, none = {}, []
     detailed_pub = {s for s in pub.index if not s.endswith("0")}
