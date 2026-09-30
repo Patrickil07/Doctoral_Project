@@ -416,8 +416,10 @@ def test_common_early_career_shock_is_not_attributed_to_exposure():
     d["ln_w"] = 6.5 + 0.3 * d["early_career"] * post + rng.normal(0, .1, n)
     res = est.event_study(d, "ln_w", with_tasks=False)
     # without these effects the post-period estimates average ~+0.30 (the whole
-    # common shock); with them they are noise around zero
-    assert abs(res.loc[res["period"] == "post", "estimate"].mean()) < 0.02
+    # common shock); with them the post-minus-pre change is noise around zero
+    # (both periods are measured against the one, noisy, reference quarter)
+    pre = res.loc[res["period"] == "pre", "estimate"].mean()
+    assert abs(res.loc[res["period"] == "post", "estimate"].mean() - pre) < 0.02
     assert (res["estimate"] / res["se"]).abs().max() < 4
 
 

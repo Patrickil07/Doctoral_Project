@@ -2,11 +2,12 @@
 07_estimate.py — estimate RQ1-RQ4 exactly as specified in proposal Section 6.5.
 
 Equations:
-  (5) RQ1  z3(k) = sum_q beta_q (E_k x 1[t=q]) + sum_q gamma_q (E_k x J_i x 1[t=q])
-                   + X'd + tau_st + rho (J_i x tau_t) + e
+  (5) RQ1  z3(k) = a E_k + b (E_k x J_i) + sum_q beta_q (E_k x 1[t=q])
+                   + sum_q gamma_q (E_k x J_i x 1[t=q]) + X'd + tau_st + rho (J_i x tau_t) + e
   (6) RQ2  EarlyShare_kst = sum_q beta_q (E_k x 1[t=q]) + eta_k + tau_st + e
-  (7) RQ3  ln W = sum_m theta_m z_m + sum_m thetaJ_m (z_m x J) + sum_m psi_m (z_m x J x Post)
-                   + lambda ln T + X'd + tau_st + rho (J x Post) + e
+  (7) RQ3  ln W = sum_m theta_m z_m + sum_m thetaJ_m (z_m x J) + sum_m pi_m (z_m x Post)
+                   + sum_m psi_m (z_m x J x Post) + lambda ln T + lambdaP (ln T x Post)
+                   + X'd + tau_st + rho (J x Post) + e
   RQ4      Eq (5) re-run with ln W as outcome, with and without task controls;
            the difference decomposes composition vs price.
 
@@ -124,6 +125,15 @@ def event_study(df: pd.DataFrame, outcome: str, with_tasks: bool,
                  if not (n.startswith("expJq_") and n.removeprefix("expJq_") < REF_Q)]
         d["expJ_trend"] = d["exposure"] * d["early_career"] * quarters_from_ref(d["quarter"])
         names.append("expJ_trend")
+    # Main effects of the interacted variables. Without them, dropping the
+    # 2022Q3 dummies does not normalise anything: it forces the 2022Q3 gradient
+    # to zero, and every other coefficient picks up the time-invariant
+    # cross-occupation gradient (E, and E x J) as if it were an event effect.
+    # Occupation FE would absorb E but are infeasible for RQ1 (z3 is fixed per
+    # occupation), so the two terms enter explicitly.
+    d["exposure_main"] = d["exposure"]
+    d["exposure_x_early"] = d["exposure"] * d["early_career"]
+    names = names + ["exposure_main", "exposure_x_early"]
     d["state_quarter"] = _state_quarter(d)
     # rho (J_i x tau_t): early-career x quarter effects absorb economy-wide shifts
     # in the early-career gap; the early_career main effect is nested in them.
@@ -185,6 +195,12 @@ def hedonic(df: pd.DataFrame) -> pd.DataFrame:
         d[f"{z}:early_career:post"] = d[z] * d["early_career"] * d["post"]
     regs += [f"{z}:early_career" for z in ("z1", "z2", "z3")]
     regs += [f"{z}:early_career:post" for z in ("z1", "z2", "z3")]
+    # Task x Post (and ln T x Post): lower-order terms of the psi interactions.
+    # Without them psi_m also absorbs any post-2022 change in the price of z_m
+    # that is common to early-career and experienced workers.
+    for z in ("z1", "z2", "z3", "ln_T"):
+        d[f"{z}:post"] = d[z] * d["post"]
+    regs += [f"{z}:post" for z in ("z1", "z2", "z3", "ln_T")]
     d["early_career:post"] = d["early_career"] * d["post"]
     regs += ["early_career:post", "early_career", "SEX", "AGE", "EDUC"]
     b, se, p, _ = _fit_absorbed(d, "ln_w", regs, ["state_quarter", "IND"], "OCC")

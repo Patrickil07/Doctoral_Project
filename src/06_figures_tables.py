@@ -76,6 +76,10 @@ RQ3_TERMS = {
     "z1:early_career:post": "ψ1  z1 × early × post",
     "z2:early_career:post": "ψ2  z2 × early × post",
     "z3:early_career:post": "ψ3  z3 × early × post",
+    "z1:post": "π1  z1 × post",
+    "z2:post": "π2  z2 × post",
+    "z3:post": "π3  z3 × post",
+    "ln_T:post": "λP  ln T × post",
     "early_career:post": "ρ  early × post",
 }
 
