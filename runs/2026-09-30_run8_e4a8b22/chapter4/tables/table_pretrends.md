@@ -1,0 +1,24 @@
+**Pre-period coefficients by outcome and specification**
+
+| Outcome | Specification | pre quarters | max abs z | quarter of max | p<0.05 | p<0.10 | joint p |
+|---|---|---|---|---|---|---|---|
+| RQ1 | Main specification | 10 | 1.75 | 2020Q2 | 0 | 1 | 0.218 |
+| RQ1 | Pandemic window dropped | 5 | 1.47 | 2021Q4 | 0 | 0 | 0.270 |
+| RQ1 | GPT-4-rated exposure | 10 | 1.93 | 2021Q1 | 0 | 1 | 0.010 |
+| RQ1 | LM-AIOE exposure | 10 | 1.52 | 2020Q2 | 0 | 0 | 0.417 |
+| RQ1 | RQ1 Model 2: linear trend | 0 |  |  |  |  |  |
+| RQ1 | RQ1 Model 3: from 2021Q4 | 3 | 1.48 | 2021Q4 | 0 | 0 | 0.154 |
+| RQ2 | Main specification | 10 | 0.89 | 2021Q1 | 0 | 0 | 0.836 |
+| RQ2 | Pandemic window dropped | 5 | 0.54 | 2022Q2 | 0 | 0 | 0.990 |
+| RQ2 | GPT-4-rated exposure | 10 | 0.98 | 2021Q1 | 0 | 0 | 0.703 |
+| RQ2 | LM-AIOE exposure | 10 | 2.13 | 2022Q2 | 1 | 1 | 0.122 |
+| RQ4 (no task controls) | Main specification | 10 | 2.83 | 2022Q2 | 1 | 2 | 0.100 |
+| RQ4 (no task controls) | Pandemic window dropped | 5 | 2.85 | 2022Q2 | 1 | 2 | 0.090 |
+| RQ4 (no task controls) | GPT-4-rated exposure | 10 | 1.87 | 2022Q1 | 0 | 1 | 0.458 |
+| RQ4 (no task controls) | LM-AIOE exposure | 10 | 3.59 | 2021Q4 | 3 | 6 | 0.079 |
+| RQ4 (task controls) | Main specification | 10 | 2.6 | 2022Q2 | 2 | 2 | 0.294 |
+| RQ4 (task controls) | Pandemic window dropped | 5 | 2.62 | 2022Q2 | 2 | 2 | 0.086 |
+| RQ4 (task controls) | GPT-4-rated exposure | 10 | 1.78 | 2021Q3 | 0 | 1 | 0.533 |
+| RQ4 (task controls) | LM-AIOE exposure | 10 | 3.61 | 2021Q4 | 3 | 5 | 0.025 |
+
+Counts of individually significant pre-period coefficients, the largest |estimate/SE|, and the p-value of the joint Wald test that all pre-period coefficients are zero (clustered covariance; blank for runs made before step 07 saved it).

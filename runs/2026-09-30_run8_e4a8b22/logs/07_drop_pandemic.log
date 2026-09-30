@@ -1,0 +1,13 @@
+[est] pandemic window dropped, N=96,978
+[est] RQ1 — task composition of employment held (Eq. 5)
+      pre-trend check: {'n_pre': 5, 'max_abs_z': 1.4706388412651923, 'any_sig_5pct': False, 'wald_chi2': 6.388619793670265, 'wald_df': 5, 'wald_p': 0.27021908177282794}
+[est] RQ2 — early-career employment share (Eq. 6)
+      RQ2 specification: state-by-quarter FE
+[est] RQ3 — hedonic implicit task prices (Eq. 7)
+      psi_3 (H3 focal) = -0.1293 (se 0.1534, p=0.3995)
+[est] RQ4 — earnings levels, unconditional vs conditional
+      composition vs price decomposition written
+
+[est] all results -> data/out/results_drop_pandemic
+[est] paste these into Chapter 4 tables, replacing [pending] cells.
+[est] run again with --drop-pandemic for the Section 3.6 robustness row.
